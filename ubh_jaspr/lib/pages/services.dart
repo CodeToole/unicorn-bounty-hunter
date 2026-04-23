@@ -1,4 +1,5 @@
 import 'package:jaspr/jaspr.dart';
+import 'package:jaspr/dom.dart';
 import 'dart:async';
 
 class Services extends StatefulComponent {
@@ -33,8 +34,8 @@ class _ServicesState extends State<Services> {
   }
 
   @override
-  Iterable<Component> build(BuildContext context) sync* {
-    yield div([
+  Component build(BuildContext context) {
+    return div([
       div([
         h2([text('STUDIO CONCIERGE (AGENTIC ENGINE)')], classes: 'text-2xl font-black text-white font-["Space_Grotesk"] tracking-tighter uppercase mb-6'),
         div([
