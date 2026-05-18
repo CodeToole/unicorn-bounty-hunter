@@ -2,6 +2,7 @@ import 'package:jaspr/jaspr.dart';
 import 'package:jaspr/dom.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../components/booking_button.dart';
 
 class MusicalChairs extends StatefulComponent {
   const MusicalChairs({super.key});
@@ -14,16 +15,15 @@ class _MusicalChairsState extends State<MusicalChairs> {
   String artistName = '';
   String instagram = '';
   String trackLink = '';
-  String status = '';
   String errorMessage = '';
   bool isLoading = false;
+  bool isSuccess = false;
 
   void handleApply(dynamic e) async {
     e.preventDefault();
     if (artistName.isEmpty || instagram.isEmpty || trackLink.isEmpty) return;
     
     setState(() {
-      status = '';
       errorMessage = '';
       isLoading = true;
     });
@@ -41,10 +41,7 @@ class _MusicalChairsState extends State<MusicalChairs> {
 
       if (response.statusCode == 200) {
         setState(() {
-          artistName = '';
-          instagram = '';
-          trackLink = '';
-          status = 'Submission Received';
+          isSuccess = true;
           isLoading = false;
         });
       } else {
@@ -87,7 +84,24 @@ class _MusicalChairsState extends State<MusicalChairs> {
               classes: 'w-full max-w-2xl mx-auto bg-[#0e0e0e] border border-[#262626] p-8 mt-8',
               [ // Form
                 h2(classes: 'text-2xl font-black text-white font-["Space_Grotesk"] text-center mb-6', [Component.text('SECURE YOUR SLOT')]),
-                form(
+                isSuccess ? div(classes: 'flex flex-col items-center justify-center', [
+                  p(classes: 'text-center text-white mb-6 font-bold text-lg', [Component.text('Details saved! Please select your slot below:')]),
+                  BookingButton('''
+                    <script>
+                    (function() {
+                      var target = document.currentScript;
+                      window.addEventListener('load', function() {
+                        calendar.schedulingButton.load({
+                          url: 'https://calendar.google.com/calendar/appointments/schedules/AcZssZ243z66IaSP_i8VyqQzEohv6AQr7S3USVAC4jB6n223LcB9f7HKVqAuHwQtHyQnEQUomYt9_7aq?gv=true',
+                          color: '#039BE5',
+                          label: 'Book Musical Chairs',
+                          target,
+                        });
+                      });
+                    })();
+                    </script>
+                  '''),
+                ]) : form(
                   attributes: {'onsubmit': 'return false;'}, 
                   events: {'submit': handleApply},
                   [
@@ -115,9 +129,8 @@ class _MusicalChairsState extends State<MusicalChairs> {
                     button(
                       attributes: isLoading ? {'disabled': 'true'} : {},
                       classes: 'bg-[#00e3fd] text-black px-8 py-4 font-bold tracking-widest uppercase w-full mt-4 hover:bg-[#00c5dd] disabled:opacity-50 disabled:cursor-not-allowed', 
-                      [Component.text(isLoading ? 'SENDING...' : 'APPLY NOW')]
+                      [Component.text(isLoading ? 'SAVING...' : 'SAVE DETAILS & CONTINUE TO CALENDAR')]
                     ),
-                    if (status.isNotEmpty) p(classes: 'text-center text-[#00e3fd] text-xs tracking-widest uppercase mt-4 font-bold', [Component.text(status)]),
                     if (errorMessage.isNotEmpty) p(classes: 'text-center text-red-500 text-xs tracking-widest uppercase mt-4 font-bold', [Component.text(errorMessage)])
                   ],
                 )
