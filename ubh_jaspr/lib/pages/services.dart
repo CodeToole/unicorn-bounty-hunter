@@ -2,6 +2,7 @@ import 'package:jaspr/jaspr.dart';
 import 'package:jaspr/dom.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../components/booking_button.dart';
 
 class Services extends StatefulComponent {
   const Services({super.key});
@@ -103,16 +104,62 @@ class _ServicesState extends State<Services> {
       ], classes: 'w-full max-w-4xl mx-auto mt-12 bg-[#0e0e0e] border border-[#262626] p-8'),
       
       div([
-        iframe([], 
-          src: 'https://calendar.google.com/calendar/appointments/schedules/AcZssZ18Lc7xaYyOdDrF7p9awdh1SF3MYJhGgc_0B6sN2UH7wfIJRvxN-C2P6xztIHuWYMdXxskU4j1Z?gv=true',
-          attributes: {
-            'width': '100%',
-            'height': '600',
-            'frameborder': '0',
-            'style': 'border: 0'
-          },
-        )
-      ], classes: 'w-full max-w-4xl mx-auto my-16 border border-[#262626]')
+        h2([Component.text('BOOK YOUR SESSION')], classes: 'text-2xl font-black text-white font-["Space_Grotesk"] tracking-tighter uppercase mb-6 text-center'),
+        div([
+          // 1. Shadow Talk Button
+          BookingButton('''
+            <link href="https://calendar.google.com/calendar/scheduling-button-script.css" rel="stylesheet">
+            <script src="https://calendar.google.com/calendar/scheduling-button-script.js" async></script>
+            <script>
+            (function() {
+              var target = document.currentScript;
+              window.addEventListener('load', function() {
+                calendar.schedulingButton.load({
+                  url: 'https://calendar.google.com/calendar/appointments/schedules/AcZssZ3lCKQxjodQnYnU25G0CN3Dlm53CcyOTHwH4feyUIH4NW7BUu3pcXTfX6o3dw03gMjZVBQuenLF?gv=true',
+                  color: '#039BE5',
+                  label: 'Book Shadow Talk',
+                  target,
+                });
+              });
+            })();
+            </script>
+          '''),
+
+          // 2. Studio Booking Button
+          BookingButton('''
+            <script>
+            (function() {
+              var target = document.currentScript;
+              window.addEventListener('load', function() {
+                calendar.schedulingButton.load({
+                  url: 'https://calendar.google.com/calendar/appointments/schedules/AcZssZ18Lc7xaYyOdDrF7p9awdh1SF3MYJhGgc_0B6sN2UH7wfIJRvxN-C2P6xztIHuWYMdXxskU4j1Z?gv=true',
+                  color: '#039BE5',
+                  label: 'Book Studio Time',
+                  target,
+                });
+              });
+            })();
+            </script>
+          '''),
+
+          // 3. Musical Chairs Button
+          BookingButton('''
+            <script>
+            (function() {
+              var target = document.currentScript;
+              window.addEventListener('load', function() {
+                calendar.schedulingButton.load({
+                  url: 'https://calendar.google.com/calendar/appointments/schedules/AcZssZ243z66IaSP_i8VyqQzEohv6AQr7S3USVAC4jB6n223LcB9f7HKVqAuHwQtHyQnEQUomYt9_7aq?gv=true',
+                  color: '#039BE5',
+                  label: 'Book Musical Chairs',
+                  target,
+                });
+              });
+            })();
+            </script>
+          '''),
+        ], classes: 'flex flex-col md:flex-row gap-6 justify-center items-center'),
+      ], classes: 'w-full max-w-4xl mx-auto my-16 border border-[#262626] p-8')
     ], classes: 'bg-[#0e0e0e] min-h-screen pt-24 pb-12 px-6');
   }
 }
