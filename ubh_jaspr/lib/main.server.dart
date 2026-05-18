@@ -32,6 +32,15 @@ void main() {
         rel: 'stylesheet',
       ),
       script(src: 'https://cdn.tailwindcss.com'),
+      raw('<script async src="https://www.googletagmanager.com/gtag/js?id=G-K90Z33WLLD"></script>'),
+      raw('''
+        <script>
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          gtag('config', 'G-K90Z33WLLD');
+        </script>
+      '''),
     ],
     styles: [
       css('html, body').styles(
