@@ -5,6 +5,7 @@ import 'pages/home.dart';
 import 'pages/services.dart';
 import 'pages/musical_chairs.dart';
 import 'pages/rap_funxtion.dart';
+import 'pages/podcast.dart';
 import 'components/header.dart';
 
 class App extends StatelessComponent {
@@ -23,6 +24,7 @@ class App extends StatelessComponent {
           Route(path: '/services', title: 'UBH | Studio', builder: (context, state) => const Services()),
           Route(path: '/musical-chairs', title: 'UBH | Showcase', builder: (context, state) => const MusicalChairs()),
           Route(path: '/rap-funxtion', title: 'UBH | Rap Funxtion', builder: (context, state) => const RapFunxtion()),
+          Route(path: '/podcast', title: 'UBH | Podcast', builder: (context, state) => PodcastPage()),
         ],
       ),
     ]);

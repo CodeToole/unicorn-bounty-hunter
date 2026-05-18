@@ -1,6 +1,7 @@
-import 'dart:async';
 import 'package:jaspr/jaspr.dart';
 import 'package:jaspr/dom.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class MusicalChairs extends StatefulComponent {
   const MusicalChairs({super.key});
@@ -12,21 +13,52 @@ class MusicalChairs extends StatefulComponent {
 class _MusicalChairsState extends State<MusicalChairs> {
   String artistName = '';
   String instagram = '';
+  String trackLink = '';
   String status = '';
+  String errorMessage = '';
+  bool isLoading = false;
 
-  void handleApply(dynamic e) {
+  void handleApply(dynamic e) async {
     e.preventDefault();
-    if (artistName.isEmpty || instagram.isEmpty) return;
-    setState(() => status = "ENCRYPTING...");
+    if (artistName.isEmpty || instagram.isEmpty || trackLink.isEmpty) return;
     
-    // Unstoppable Engine: Force feedback after 2000ms regardless of DB
-    Timer(const Duration(milliseconds: 2000), () {
-      setState(() {
-        status = "APPLICATION RECEIVED. STAND BY.";
-        artistName = '';
-        instagram = '';
-      });
+    setState(() {
+      status = '';
+      errorMessage = '';
+      isLoading = true;
     });
+    
+    try {
+      final response = await http.post(
+        Uri.parse('https://musical-chairs-intake-loz23viwea-uc.a.run.app'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'artistName': artistName,
+          'instagramUrl': instagram,
+          'trackLink': trackLink,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        setState(() {
+          artistName = '';
+          instagram = '';
+          trackLink = '';
+          status = 'Submission Received';
+          isLoading = false;
+        });
+      } else {
+        setState(() {
+          errorMessage = 'Error: ${response.statusCode}';
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        errorMessage = 'Error connecting to server.';
+        isLoading = false;
+      });
+    }
   }
 
   @override
@@ -61,20 +93,32 @@ class _MusicalChairsState extends State<MusicalChairs> {
                   [
                     input(
                       type: InputType.text, 
-                      attributes: {'placeholder': 'ARTIST NAME'}, 
+                      attributes: {'placeholder': 'ARTIST NAME', 'required': 'true'}, 
                       value: artistName, 
                       onInput: (value) => setState(() => artistName = value as String), 
                       classes: 'w-full bg-[#131313] border-b border-[#262626] text-white p-4 mb-4 focus:outline-none focus:border-[#00e3fd]'
                     ),
                     input(
                       type: InputType.url, 
-                      attributes: {'placeholder': 'INSTAGRAM URL'}, 
+                      attributes: {'placeholder': 'INSTAGRAM URL', 'required': 'true'}, 
                       value: instagram, 
                       onInput: (value) => setState(() => instagram = value as String), 
                       classes: 'w-full bg-[#131313] border-b border-[#262626] text-white p-4 mb-4 focus:outline-none focus:border-[#00e3fd]'
                     ),
-                    button(classes: 'bg-[#00e3fd] text-black px-8 py-4 font-bold tracking-widest uppercase w-full mt-4 hover:bg-[#00c5dd]', [Component.text('APPLY NOW')]),
-                    if (status.isNotEmpty) p(classes: 'text-center text-[#00e3fd] text-xs tracking-widest uppercase mt-4', [Component.text(status)])
+                    input(
+                      type: InputType.url, 
+                      attributes: {'placeholder': 'TRACK LINK (DRIVE/DROPBOX/CLOUD)', 'required': 'true'}, 
+                      value: trackLink, 
+                      onInput: (value) => setState(() => trackLink = value as String), 
+                      classes: 'w-full bg-[#131313] border-b border-[#262626] text-white p-4 mb-4 focus:outline-none focus:border-[#00e3fd]'
+                    ),
+                    button(
+                      attributes: isLoading ? {'disabled': 'true'} : {},
+                      classes: 'bg-[#00e3fd] text-black px-8 py-4 font-bold tracking-widest uppercase w-full mt-4 hover:bg-[#00c5dd] disabled:opacity-50 disabled:cursor-not-allowed', 
+                      [Component.text(isLoading ? 'SENDING...' : 'APPLY NOW')]
+                    ),
+                    if (status.isNotEmpty) p(classes: 'text-center text-[#00e3fd] text-xs tracking-widest uppercase mt-4 font-bold', [Component.text(status)]),
+                    if (errorMessage.isNotEmpty) p(classes: 'text-center text-red-500 text-xs tracking-widest uppercase mt-4 font-bold', [Component.text(errorMessage)])
                   ],
                 )
               ],

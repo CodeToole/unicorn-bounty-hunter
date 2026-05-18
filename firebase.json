@@ -1,28 +1,40 @@
 {
   "hosting": {
-    "site": "ubh-ecosystem-2026-30664",
-    "public": "out",
+    "public": "ubh_jaspr/build/jaspr",
     "headers": [
       {
         "source": "**/*.html",
         "headers": [
-          { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
+          }
         ]
       }
     ],
-    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-    "rewrites": [ { "source": "**", "destination": "/index.html" } ]
-  },
-  "functions": {
-    "predeploy": "npm --prefix \"$RESOURCE_DIR\" run build",
-    "source": "functions",
-    "codebase": "default",
     "ignore": [
-      "node_modules",
-      ".git",
-      "firebase-debug.log",
-      "firebase-debug.*.log",
-      "*.local"
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
     ]
-  }
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        ".dart_tool",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ]
+    }
+  ]
 }

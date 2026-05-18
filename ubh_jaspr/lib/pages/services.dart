@@ -1,6 +1,7 @@
 import 'package:jaspr/jaspr.dart';
 import 'package:jaspr/dom.dart';
-import 'dart:async';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class Services extends StatefulComponent {
   const Services({super.key});
@@ -9,60 +10,108 @@ class Services extends StatefulComponent {
 }
 
 class _ServicesState extends State<Services> {
-  List<Map<String, String>> messages = [
-    {'role': 'system', 'text': 'Connection established. What do you need to know about the studio?'}
-  ];
-  String currentInput = '';
-  bool isTyping = false;
+  String artistName = '';
+  String requestedDate = '';
+  String blockDuration = '';
+  String statusMessage = '';
+  String errorMessage = '';
+  bool isLoading = false;
 
-  void handleSend() {
-    if (currentInput.trim().isEmpty) return;
+  void handleSend(dynamic e) async {
+    e.preventDefault();
+    if (artistName.trim().isEmpty || requestedDate.trim().isEmpty || blockDuration.trim().isEmpty) return;
 
     setState(() {
-      messages.add({'role': 'user', 'text': currentInput});
-      currentInput = '';
-      isTyping = true;
+      isLoading = true;
+      statusMessage = '';
+      errorMessage = '';
     });
 
-    // Agentic Processing Delay
-    Timer(const Duration(milliseconds: 1500), () {
+    try {
+      final response = await http.post(
+        Uri.parse('https://studio-booking-process-loz23viwea-uc.a.run.app'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'artistName': artistName,
+          'requestedDate': requestedDate,
+          'blockDuration': int.tryParse(blockDuration) ?? 1,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        setState(() {
+          artistName = '';
+          requestedDate = '';
+          blockDuration = '';
+          statusMessage = 'Submission Received';
+          isLoading = false;
+        });
+      } else {
+        setState(() {
+          errorMessage = 'Error: ${response.statusCode}';
+          isLoading = false;
+        });
+      }
+    } catch (e) {
       setState(() {
-        messages.add({'role': 'system', 'text': 'Inquiry logged. A UBH engineer will follow up shortly to confirm block rates and analog gear requirements.'});
-        isTyping = false;
+        errorMessage = 'Error connecting to server.';
+        isLoading = false;
       });
-    });
+    }
   }
 
   @override
   Component build(BuildContext context) {
     return div([
       div([
-        h2([text('STUDIO CONCIERGE (AGENTIC ENGINE)')], classes: 'text-2xl font-black text-white font-["Space_Grotesk"] tracking-tighter uppercase mb-6'),
-        div([
-          // Message History
-          for (var msg in messages)
-            p([
-              strong([text(msg['role'] == 'system' ? 'UBH System: ' : 'You: ')], classes: msg['role'] == 'system' ? 'text-[#00e3fd]' : 'text-zinc-400'),
-              text(' ' + msg['text']!)
-            ], classes: 'mb-3 font-["Manrope"] text-sm text-white'),
-          
-          if (isTyping) p([i([text('UBH System is typing...')])], classes: 'text-[#00e3fd] text-xs font-["Manrope"] animate-pulse')
-        ], classes: 'bg-[#131313] border border-[#262626] h-[250px] p-4 mb-4 overflow-y-auto flex flex-col'),
-        
-        div([
-          input(
-            type: InputType.text, 
-            placeholder: 'e.g., Do you mix vocals remotely?', 
-            value: currentInput,
-            onChange: (value) => setState(() => currentInput = value),
-            classes: 'flex-1 bg-[#131313] border border-[#262626] text-white px-4 py-3 focus:outline-none focus:border-[#00e3fd] font-["Manrope"]'
-          ),
-          button([text('SEND')], onClick: handleSend, classes: 'bg-[#00e3fd] text-black px-6 py-3 font-bold tracking-widest uppercase ml-2 hover:bg-[#00c5dd]')
-        ], classes: 'flex')
+        h2([Component.text('STUDIO BOOKING')], classes: 'text-2xl font-black text-white font-["Space_Grotesk"] tracking-tighter uppercase mb-6'),
+        form(
+          attributes: {'onsubmit': 'return false;'}, 
+          events: {'submit': handleSend},
+          [
+            input(
+              type: InputType.text, 
+              attributes: {'placeholder': 'ARTIST NAME', 'required': 'true'},
+              value: artistName,
+              onInput: (value) => setState(() => artistName = value as String),
+              classes: 'w-full bg-[#131313] border border-[#262626] text-white px-4 py-3 mb-4 focus:outline-none focus:border-[#00e3fd] font-["Manrope"]'
+            ),
+            input(
+              type: InputType.date, 
+              attributes: {'placeholder': 'REQUESTED DATE', 'required': 'true'},
+              value: requestedDate,
+              onInput: (value) => setState(() => requestedDate = value as String),
+              classes: 'w-full bg-[#131313] border border-[#262626] text-white px-4 py-3 mb-4 focus:outline-none focus:border-[#00e3fd] font-["Manrope"]'
+            ),
+            input(
+              type: InputType.number, 
+              attributes: {'placeholder': 'BLOCK DURATION (HOURS)', 'min': '1', 'required': 'true'},
+              value: blockDuration,
+              onInput: (value) => setState(() => blockDuration = value as String),
+              classes: 'w-full bg-[#131313] border border-[#262626] text-white px-4 py-3 mb-4 focus:outline-none focus:border-[#00e3fd] font-["Manrope"]'
+            ),
+            button([Component.text(isLoading ? 'SENDING...' : 'SEND')], 
+              attributes: isLoading ? {'disabled': 'true'} : {},
+              classes: 'w-full bg-[#00e3fd] text-black px-6 py-3 font-bold tracking-widest uppercase hover:bg-[#00c5dd] disabled:opacity-50 disabled:cursor-not-allowed'
+            ),
+            if (statusMessage.isNotEmpty)
+              p([Component.text(statusMessage)], classes: 'text-[#00e3fd] mt-4 font-["Manrope"] text-center font-bold'),
+            if (errorMessage.isNotEmpty)
+              p([Component.text(errorMessage)], classes: 'text-red-500 mt-4 font-["Manrope"] text-center font-bold')
+          ]
+        )
       ], classes: 'w-full max-w-4xl mx-auto mt-12 bg-[#0e0e0e] border border-[#262626] p-8'),
       
       div([
-        iframe([], src: 'https://calendar.google.com/calendar/appointments/schedules/AcZssZ2uQJv23R2QyomV62yBxkrbf2eg1SuJtrHaWvo9ccbl3PNkByKS3M_wY93jcndjQ0JQhlGkp8k9?gv=true', classes: 'w-full min-h-[600px] bg-transparent', attributes: {'frameBorder': '0'})
+        iframe([], 
+          src: 'https://calendar.google.com/calendar/appointments/schedules/AcZssZ18Lc7xaYyOdDrF7p9awdh1SF3MYJhGgc_0B6sN2UH7wfIJRvxN-C2P6xztIHuWYMdXxskU4j1Z?gv=true',
+          attributes: {
+            'width': '100%',
+            'height': '600',
+            'frameborder': '0',
+            'style': 'border: 0'
+          },
+        )
       ], classes: 'w-full max-w-4xl mx-auto my-16 border border-[#262626]')
     ], classes: 'bg-[#0e0e0e] min-h-screen pt-24 pb-12 px-6');
   }

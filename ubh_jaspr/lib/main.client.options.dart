@@ -6,6 +6,8 @@
 
 import 'package:jaspr/client.dart';
 
+import 'package:ubh_jaspr/pages/podcast.dart' deferred as _podcast;
+
 /// Default [ClientOptions] for use with your Jaspr project.
 ///
 /// Use this to initialize Jaspr **before** calling [runApp].
@@ -22,4 +24,11 @@ import 'package:jaspr/client.dart';
 ///   runApp(...);
 /// }
 /// ```
-ClientOptions get defaultClientOptions => ClientOptions();
+ClientOptions get defaultClientOptions => ClientOptions(
+  clients: {
+    'podcast': ClientLoader(
+      (p) => _podcast.PodcastPage(),
+      loader: _podcast.loadLibrary,
+    ),
+  },
+);

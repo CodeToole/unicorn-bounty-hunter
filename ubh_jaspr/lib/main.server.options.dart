@@ -6,6 +6,7 @@
 
 import 'package:jaspr/server.dart';
 import 'package:ubh_jaspr/constants/theme.dart' as _theme;
+import 'package:ubh_jaspr/pages/podcast.dart' as _podcast;
 
 /// Default [ServerOptions] for use with your Jaspr project.
 ///
@@ -25,5 +26,8 @@ import 'package:ubh_jaspr/constants/theme.dart' as _theme;
 /// ```
 ServerOptions get defaultServerOptions => ServerOptions(
   clientId: 'main.client.dart.js',
+  clients: {
+    _podcast.PodcastPage: ClientTarget<_podcast.PodcastPage>('podcast'),
+  },
   styles: () => [..._theme.styles],
 );
