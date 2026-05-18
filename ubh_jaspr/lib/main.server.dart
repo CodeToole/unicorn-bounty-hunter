@@ -32,14 +32,14 @@ void main() {
         rel: 'stylesheet',
       ),
       script(src: 'https://cdn.tailwindcss.com'),
-      raw('<script async src="https://www.googletagmanager.com/gtag/js?id=G-K90Z33WLLD"></script>'),
       raw('''
-        <script>
-          window.dataLayer = window.dataLayer || [];
-          function gtag(){dataLayer.push(arguments);}
-          gtag('js', new Date());
-          gtag('config', 'G-K90Z33WLLD');
+        <script type="text/javascript">
+        var _iub = _iub || [];
+        _iub.csConfiguration = {"siteId":4536990,"cookiePolicyId":80575093,"lang":"en","storage":{"useSiteId":true}};
         </script>
+        <script type="text/javascript" src="https://cs.iubenda.com/autoblocking/4536990.js"></script>
+        <script type="text/javascript" src="//cdn.iubenda.com/cs/gpp/stub.js"></script>
+        <script type="text/javascript" src="//cdn.iubenda.com/cs/iubenda_cs.js" charset="UTF-8" async></script>
       '''),
       raw('''
         <script type="text/javascript">
@@ -48,6 +48,15 @@ void main() {
                 t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
                 y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
             })(window, document, "clarity", "script", "wt9isjbqwk");
+        </script>
+      '''),
+      raw('<script async src="https://www.googletagmanager.com/gtag/js?id=G-K90Z33WLLD"></script>'),
+      raw('''
+        <script>
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          gtag('config', 'G-K90Z33WLLD');
         </script>
       '''),
     ],
