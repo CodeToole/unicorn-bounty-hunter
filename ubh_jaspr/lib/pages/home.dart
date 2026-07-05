@@ -1,88 +1,202 @@
 import 'package:jaspr/jaspr.dart';
 import 'package:jaspr/dom.dart';
+import '../components/email_capture.dart';
+
+/// Data model for a UBH Roster artist.
+class _ArtistData {
+  final String name;
+  final String handle;
+  final String role;
+  final String imageUrl;
+
+  const _ArtistData({
+    required this.name,
+    required this.handle,
+    required this.role,
+    required this.imageUrl,
+  });
+}
+
+/// The core UBH artist roster.
+const List<_ArtistData> _councilRoster = [
+  _ArtistData(
+    name: 'Ali Kazem',
+    handle: '@shadowurameshi',
+    role: 'Founder / Executive Producer',
+    imageUrl: '/images/ali.jpg',
+  ),
+  _ArtistData(
+    name: 'Malik Rose',
+    handle: '@gentlemanrosayy',
+    role: 'Vocalist / A&R',
+    imageUrl: '/images/malik.jpg',
+  ),
+  _ArtistData(
+    name: 'Unkn0wn Da Rapper',
+    handle: '@unkn0wndaproducer',
+    role: 'Producer / Engineer',
+    imageUrl: '/images/unknown.jpg',
+  ),
+  _ArtistData(
+    name: 'Yung Illie',
+    handle: '@illieaking',
+    role: 'Lyricist / Creative Director',
+    imageUrl: '/images/illie.png',
+  ),
+];
 
 class Home extends StatelessComponent {
   const Home({super.key});
 
   @override
   Component build(BuildContext context) {
-    return section(
-      classes: 'relative min-h-screen w-full flex items-center justify-center overflow-hidden bg-[#0e0e0e]',
+    return div(
+      classes: 'w-full',
       [
-        // Hero Background
+        // LAYER 1: The Video
+        video(
+          [source(src: '/videos/webfunxion.mp4', type: 'video/mp4')],
+          autoplay: true,
+          loop: true,
+          muted: true,
+          classes: 'fixed inset-0 w-full h-full object-cover z-0',
+          attributes: {'playsinline': ''},
+        ),
+
+        // LAYER 2: The Dark Overlay
         div(
-          classes: 'absolute inset-0 z-0',
+          classes: 'fixed inset-0 w-full h-full bg-[#050505]/85 z-10',
+          [],
+        ),
+
+        // FLOATING CTA
+        div(
+          classes: 'fixed bottom-8 left-0 right-0 z-50 flex justify-center px-6 pointer-events-none',
           [
-            img(
-              src: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBvtBy7Ou8Mdz3nTMKa9d3jLsi1rKO1uWuZpF7nAY1bhSr__WZpiCoYJHUjyvYNRUK38L2jyLXrxh-SJznHIaBQ7KrJcD0ZxJ-Xv_hkpfOB5_Vfpwj9RF7ohGB9D7SrjnRJ9k9lteTdRs6Ty77jaLbdsRIZwVRHRzJxALNXG2rhm2nj7hnfvr-S66QnYLv4eUPvZ6ZWjDALAQHHQhZj1oc9hwQlmgzaXybqGQbl85Pji7_OCrAIjVD8GeEZg2dj8GrP-UbDLN3gKg', 
-              alt: 'Candid high-contrast portrait of a hip-hop artist',
-              classes: 'w-full h-full object-cover grayscale brightness-50',
+            a(
+              [Component.text('RAP FUNXTION 16 – JULY 19 – GET TICKETS')],
+              href: 'https://buytickets.at/ubh/2275875',
+              target: Target.blank,
+              classes:
+                  'pointer-events-auto bg-black border border-[#D4AF37] text-[#D4AF37] font-bold py-4 px-8 uppercase tracking-widest hover:bg-[#D4AF37] hover:text-black transition-colors duration-300 shadow-2xl text-center',
             ),
-            div(classes: 'absolute inset-0 bg-gradient-to-t from-[#0e0e0e] via-transparent to-[#0e0e0e]/40', []),
-            div(classes: 'absolute inset-0 bg-gradient-to-r from-[#0e0e0e]/80 via-transparent to-[#0e0e0e]/20', []),
           ],
         ),
-        
-        // Hero Content
+
+        // LAYER 3: The Scrolling Content
         div(
-          classes: 'relative z-10 w-full px-6 md:px-12 flex flex-col items-start gap-0',
+          classes: 'relative z-20 w-full min-h-screen flex flex-col items-center',
           [
-            span(classes: 'font-["Manrope"] text-[#00e3fd] text-sm md:text-base tracking-[0.4em] uppercase mb-4 ml-1', [Component.text('ARTIST FOCAL POINT / ALI')]),
-            h1(
-              classes: 'text-[12vw] md:text-[10vw] leading-[0.85] font-black tracking-tighter uppercase font-["Space_Grotesk"] text-white',
+            // ──────────────────────────────────────────────
+            //  HERO SECTION
+            // ──────────────────────────────────────────────
+            section(
+              classes: 'relative h-[70vh] w-full flex items-center justify-center',
               [
-                Component.text('UNICORN'), br(), 
-                span(classes: 'text-[#00e3fd] text-shadow-[0_0_20px_rgba(0,227,253,0.3)]', [Component.text('BOUNTY')]), br(), 
-                Component.text('HUNTER')
-              ],
-            ),
-            div(
-              classes: 'mt-8 flex flex-col md:flex-row gap-6 items-start md:items-center',
-              [
-                button(classes: 'bg-[#00e3fd] text-black px-10 py-5 font-["Space_Grotesk"] font-bold text-lg tracking-tighter active:scale-95 transition-all hover:bg-[#00c5dd]', [Component.text('LISTEN NOW')]),
+                // Brand Logo — floating
                 div(
-                  classes: 'flex items-center gap-4 text-zinc-500',
+                  classes: 'relative z-20 flex flex-col items-center',
                   [
-                    div(classes: 'w-12 h-[1px] bg-zinc-500', []),
-                    p(classes: 'font-["Manrope"] text-xs tracking-widest uppercase', [Component.text('Latest Release: "Obsidian Dreams"')]),
+                    img(
+                      src: '/images/ubh_logo.jpg',
+                      alt: 'Unicorn Bounty Hunters Logo',
+                      classes: 'w-64 md:w-96 object-contain shadow-2xl filter drop-shadow-[0_0_40px_rgba(255,255,255,0.2)]',
+                    ),
                   ],
                 ),
               ],
             ),
 
-            // UBH Core Mission (Option 1)
-            p(
-              classes: 'font-["Manrope"] text-zinc-400 text-sm tracking-widest uppercase text-center mt-12 max-w-2xl mx-auto',
+            // ──────────────────────────────────────────────
+            //  THE UBH ROSTER — Artist Roster
+            // ──────────────────────────────────────────────
+            section(
+              classes: 'relative w-full py-20 md:py-28',
               [
-                Component.text('Unicorn Bounty Hunters (UBH) is a premier independent music collective and multimedia label forged in Mobile, Alabama. We bridge the gap between raw, philosophical backpack hip-hop and high-frequency electronic production. UBH is not just a roster; it is a unified front of artists, producers, and designers dedicated to preserving the prestige of the underground while engineering the future of sound.')
+                // Section Header
+                div(
+                  classes: 'max-w-7xl mx-auto px-6 mb-16 text-center',
+                  [
+                    // Decorative line + label
+                    div(
+                      classes: 'flex items-center justify-center gap-4 mb-6',
+                      [
+                        div(classes: 'w-16 h-[1px] bg-gradient-to-r from-transparent to-[#D4AF37]/60', []),
+                        span(
+                          classes: 'font-["Manrope"] text-[#D4AF37] text-xs tracking-[0.5em] uppercase',
+                          [Component.text('ARTIST ROSTER')],
+                        ),
+                        div(classes: 'w-16 h-[1px] bg-gradient-to-l from-transparent to-[#D4AF37]/60', []),
+                      ],
+                    ),
+                    h2(
+                      classes: 'font-["Space_Grotesk"] text-4xl md:text-5xl lg:text-6xl font-black tracking-tight uppercase text-white',
+                      [Component.text('THE UBH ROSTER')],
+                    ),
+                  ],
+                ),
+
+                // Artist Grid — wider container, larger cards
+                div(
+                  classes: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 px-6 max-w-7xl mx-auto',
+                  [
+                    for (final artist in _councilRoster)
+                      _buildArtistCard(artist),
+                  ],
+                ),
               ],
             ),
           ],
         ),
+        const EmailCapture(),
+      ],
+    );
+  }
 
-        // Side Metadata (DAW Inspired)
+  /// Builds a single artist card with brand-consistent styling.
+  Component _buildArtistCard(_ArtistData artist) {
+    // Strip the @ to build the Instagram profile URL
+    final handleWithoutAt = artist.handle.startsWith('@')
+        ? artist.handle.substring(1)
+        : artist.handle;
+
+    return div(
+      classes: 'group relative bg-[#0d0d0d] border border-[#1a1a1a] '
+          'hover:border-[#D4AF37] transition-all duration-300 transform hover:-translate-y-1 '
+          'p-10 flex flex-col items-center text-center',
+      [
+        // Artist Image
+        img(
+          src: artist.imageUrl,
+          alt: '${artist.name} photo',
+          classes: 'w-20 h-20 md:w-24 md:h-24 rounded-full object-cover border-2 border-[#1a1a1a] group-hover:border-[#D4AF37] transition-colors duration-300 mx-auto mb-4 shadow-lg',
+        ),
+
+        // Artist name
+        h3(
+          classes: 'font-["Space_Grotesk"] text-xl font-bold tracking-tight text-white uppercase mb-1',
+          [Component.text(artist.name)],
+        ),
+
+        // Role
+        span(
+          classes: 'font-["Manrope"] text-zinc-500 text-xs tracking-widest uppercase mb-3',
+          [Component.text(artist.role)],
+        ),
+
+        // Divider
         div(
-          classes: 'absolute right-6 bottom-12 hidden lg:flex flex-col gap-8 text-right border-r border-[#00e3fd]/20 pr-6 text-white',
-          [
-            div(
-              [
-                p(classes: 'font-["Manrope"] text-[10px] text-[#00e3fd] tracking-widest uppercase mb-1', [Component.text('Status')]),
-                p(classes: 'font-["Space_Grotesk"] text-lg font-bold', [Component.text('RECORDING')]),
-              ],
-            ),
-            div(
-              [
-                p(classes: 'font-["Manrope"] text-[10px] text-[#00e3fd] tracking-widest uppercase mb-1', [Component.text('BPM')]),
-                p(classes: 'font-["Space_Grotesk"] text-lg font-bold', [Component.text('128.00')]),
-              ],
-            ),
-            div(
-              [
-                p(classes: 'font-["Manrope"] text-[10px] text-[#00e3fd] tracking-widest uppercase mb-1', [Component.text('Location')]),
-                p(classes: 'font-["Space_Grotesk"] text-lg font-bold uppercase', [Component.text('London / Underground')]),
-              ],
-            ),
-          ],
+          classes: 'w-8 h-[1px] bg-[#1a1a1a] group-hover:bg-[#D4AF37]/40 '
+              'transition-colors duration-300 mb-3',
+          [],
+        ),
+
+        // Handle — clickable gold link to Instagram
+        a(
+          [Component.text(artist.handle)],
+          href: 'https://instagram.com/$handleWithoutAt',
+          target: Target.blank,
+          classes: 'font-["Manrope"] text-sm tracking-wide text-[#D4AF37] hover:text-[#f0d060] transition-colors duration-200',
         ),
       ],
     );

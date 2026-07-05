@@ -3,7 +3,7 @@
     "public": "ubh_jaspr/build/jaspr",
     "headers": [
       {
-        "source": "**/*.html",
+        "source": "**",
         "headers": [
           {
             "key": "Cache-Control",

@@ -15,9 +15,12 @@ import 'app.dart';
 import 'main.server.options.dart';
 
 void main() {
-  // Initializes the server environment with the generated default options.
   Jaspr.initializeApp(
-    options: defaultServerOptions,
+    options: ServerOptions(
+      clientId: 'main.client.dart.js?v=22',
+      clients: defaultServerOptions.clients,
+      styles: defaultServerOptions.styles,
+    ),
   );
 
   // Starts the app.
@@ -27,6 +30,7 @@ void main() {
   runApp(Document(
     title: 'UNICORN BOUNTY HUNTER',
     head: [
+      link(rel: 'icon', type: 'image/jpeg', href: '/favicon.jpg'),
       link(
         href: 'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..900&family=Manrope:wght@200..800&display=swap',
         rel: 'stylesheet',

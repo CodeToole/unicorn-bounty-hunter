@@ -60,14 +60,14 @@ export default function ServicesPage() {
           </div>
 
           <form onSubmit={handleSend} className="flex gap-2">
-            <input type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder="e.g., Do you mix vocals remotely?" className="flex-1 bg-[#131313] border border-[#262626] text-white px-4 py-3 font-['Manrope'] text-sm focus:outline-none focus:border-[#00e3fd] transition-colors" />
+            <input type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder="e.g., Do you mix vocals remotely?" className="flex-1 bg-[#131313] border border-[#262626] text-white px-4 py-3 font-['Manrope'] text-sm focus:outline-none focus:border-white transition-colors" />
             <button type="submit" disabled={isLoading} className="bg-secondary text-black px-6 py-3 font-headline font-bold text-sm tracking-widest uppercase hover:bg-secondary-dim active:scale-95 transition-all disabled:opacity-50">SEND</button>
           </form>
         </div>
       )}
 
       {mounted && (
-        <div className="w-full max-w-4xl mx-auto my-16 bg-surface-container-highest p-4 rounded-none border border-outline/20 shadow-[0_20px_40px_rgba(0,227,253,0.05)]">
+        <div className="w-full max-w-4xl mx-auto my-16 bg-surface-container-highest p-4 rounded-none border border-outline/20 shadow-[0_20px_40px_rgba(255,255,255,0.03)]">
           <iframe src="https://calendar.google.com/calendar/appointments/schedules/AcZssZ2uQJv23R2QyomV62yBxkrbf2eg1SuJtrHaWvo9ccbl3PNkByKS3M_wY93jcndjQ0JQhlGkp8k9?gv=true" style={{ border: 0 }} className="w-full min-h-[600px] bg-transparent" frameBorder="0"></iframe>
         </div>
       )}

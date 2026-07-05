@@ -37,12 +37,12 @@ export default function MusicalChairsPage() {
     <div className="bg-surface text-on-surface min-h-screen pt-32 pb-16 px-6">
       <div className="max-w-5xl mx-auto flex flex-col gap-12">
         <div className="text-center">
-          <h1 className="text-5xl md:text-7xl font-black font-['Space_Grotesk'] text-[#00e3fd] tracking-tighter uppercase mb-4">Musical Chairs</h1>
+          <h1 className="text-5xl md:text-7xl font-black font-['Space_Grotesk'] text-white tracking-tighter uppercase mb-4">Musical Chairs</h1>
           <p className="text-zinc-400 font-['Manrope'] text-lg tracking-widest uppercase">The Official UBH Cipher Showcase</p>
         </div>
 
         {/* Video Embed */}
-        <div className="w-full bg-[#0e0e0e] border border-[#262626] p-2 md:p-4 shadow-[0_20px_40px_rgba(0,227,253,0.05)]">
+        <div className="w-full bg-[#0e0e0e] border border-[#262626] p-2 md:p-4 shadow-[0_20px_40px_rgba(255,255,255,0.03)]">
           {mounted && (
             <div className="relative w-full aspect-video">
               <iframe 
@@ -62,10 +62,10 @@ export default function MusicalChairsPage() {
         <div className="w-full max-w-2xl mx-auto bg-[#0e0e0e] border border-[#262626] p-8 mt-8">
           <h2 className="text-2xl font-black text-white font-['Space_Grotesk'] tracking-tighter uppercase mb-6 text-center">Secure Your Slot</h2>
           <form onSubmit={handleApply} className="flex flex-col gap-6">
-            <input type="text" required placeholder="ARTIST NAME" value={artistName} onChange={(e) => setArtistName(e.target.value)} className="w-full bg-[#131313] border-0 border-b border-[#262626] text-white px-4 py-4 font-['Manrope'] focus:outline-none focus:border-[#00e3fd] transition-colors" />
-            <input type="url" required placeholder="INSTAGRAM URL" value={instagram} onChange={(e) => setInstagram(e.target.value)} className="w-full bg-[#131313] border-0 border-b border-[#262626] text-white px-4 py-4 font-['Manrope'] focus:outline-none focus:border-[#00e3fd] transition-colors" />
-            <button type="submit" className="mt-4 bg-[#00e3fd] text-black px-8 py-4 font-['Space_Grotesk'] font-bold text-lg tracking-widest uppercase hover:bg-[#00c5dd] active:scale-95 transition-all w-full">APPLY NOW</button>
-            {submitStatus && <p className="text-center font-['Manrope'] text-[#00e3fd] text-xs tracking-widest uppercase mt-4">{submitStatus}</p>}
+            <input type="text" required placeholder="ARTIST NAME" value={artistName} onChange={(e) => setArtistName(e.target.value)} className="w-full bg-[#131313] border-0 border-b border-[#262626] text-white px-4 py-4 font-['Manrope'] focus:outline-none focus:border-white transition-colors" />
+            <input type="url" required placeholder="INSTAGRAM URL" value={instagram} onChange={(e) => setInstagram(e.target.value)} className="w-full bg-[#131313] border-0 border-b border-[#262626] text-white px-4 py-4 font-['Manrope'] focus:outline-none focus:border-white transition-colors" />
+            <button type="submit" className="mt-4 bg-white text-black px-8 py-4 font-['Space_Grotesk'] font-bold text-lg tracking-widest uppercase hover:bg-zinc-200 active:scale-95 transition-all w-full">APPLY NOW</button>
+            {submitStatus && <p className="text-center font-['Manrope'] text-white text-xs tracking-widest uppercase mt-4">{submitStatus}</p>}
           </form>
         </div>
       </div>

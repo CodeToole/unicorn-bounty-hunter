@@ -20,7 +20,7 @@ export default function Header() {
           {/* Mobile Menu Toggle Button */}
           <button 
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} 
-            className="md:hidden text-[#00e3fd] active:scale-95 transition-transform z-[110] relative"
+            className="md:hidden text-white active:scale-95 transition-transform z-[110] relative"
             aria-label="Toggle Menu"
           >
             {isMobileMenuOpen ? (
@@ -32,7 +32,7 @@ export default function Header() {
           <Link 
             href="/" 
             onClick={() => setIsMobileMenuOpen(false)}
-            className="text-2xl font-black text-[#00e3fd] tracking-tighter font-headline uppercase relative z-[110]"
+            className="text-2xl font-black text-white tracking-tighter font-headline uppercase relative z-[110]"
           >
             PRESTIGE
           </Link>
@@ -40,14 +40,14 @@ export default function Header() {
         
         {/* Desktop Navigation */}
         <nav className="hidden md:flex gap-8 items-center">
-          <Link className="font-headline uppercase tracking-tighter font-bold text-zinc-400 hover:text-[#00e3fd] transition-all" href="/services">SERVICES & STUDIO</Link>
-          <Link className="font-headline uppercase tracking-tighter font-bold text-zinc-400 hover:text-[#00e3fd] transition-all" href="/musical-chairs">MUSICAL CHAIRS</Link>
-          <Link className="font-headline uppercase tracking-tighter font-bold text-zinc-400 hover:text-[#00e3fd] transition-all" href="/rap-funxtion">RAP FUNXTION</Link>
+          <Link className="font-headline uppercase tracking-tighter font-bold text-zinc-400 hover:text-white transition-all" href="/services">SERVICES & STUDIO</Link>
+          <Link className="font-headline uppercase tracking-tighter font-bold text-zinc-400 hover:text-white transition-all" href="/musical-chairs">MUSICAL CHAIRS</Link>
+          <Link className="font-headline uppercase tracking-tighter font-bold text-zinc-400 hover:text-white transition-all" href="/rap-funxtion">RAP FUNXTION</Link>
         </nav>
         
         <Link 
           href="/services"
-          className="hidden md:block bg-[#00e3fd] text-black px-6 py-2 font-headline font-bold text-sm tracking-widest uppercase hover:bg-[#00c5dd] active:scale-95 transition-all text-center"
+          className="hidden md:block bg-white text-black px-6 py-2 font-headline font-bold text-sm tracking-widest uppercase hover:bg-zinc-200 active:scale-95 transition-all text-center"
         >
           Join the Hunt
         </Link>
@@ -57,10 +57,10 @@ export default function Header() {
       {isMobileMenuOpen && (
         <div className="fixed inset-0 w-full h-[100dvh] bg-[#0e0e0e]/98 backdrop-blur-3xl z-[100] flex flex-col items-center justify-center">
           <nav className="flex flex-col items-center gap-12 w-full px-6">
-            <Link onClick={() => setIsMobileMenuOpen(false)} className="font-headline uppercase tracking-tighter font-black text-3xl text-white hover:text-[#00e3fd] transition-all text-center" href="/services">SERVICES & STUDIO</Link>
-            <Link onClick={() => setIsMobileMenuOpen(false)} className="font-headline uppercase tracking-tighter font-black text-3xl text-white hover:text-[#00e3fd] transition-all text-center" href="/musical-chairs">MUSICAL CHAIRS</Link>
-            <Link onClick={() => setIsMobileMenuOpen(false)} className="font-headline uppercase tracking-tighter font-black text-3xl text-white hover:text-[#00e3fd] transition-all text-center" href="/rap-funxtion">RAP FUNXTION</Link>
-            <Link onClick={() => setIsMobileMenuOpen(false)} href="/services" className="mt-8 bg-[#00e3fd] text-black px-10 py-4 font-headline font-bold text-lg tracking-widest uppercase active:scale-95 transition-all w-full max-w-xs text-center">Join the Hunt</Link>
+            <Link onClick={() => setIsMobileMenuOpen(false)} className="font-headline uppercase tracking-tighter font-black text-3xl text-white hover:text-zinc-400 transition-all text-center" href="/services">SERVICES & STUDIO</Link>
+            <Link onClick={() => setIsMobileMenuOpen(false)} className="font-headline uppercase tracking-tighter font-black text-3xl text-white hover:text-zinc-400 transition-all text-center" href="/musical-chairs">MUSICAL CHAIRS</Link>
+            <Link onClick={() => setIsMobileMenuOpen(false)} className="font-headline uppercase tracking-tighter font-black text-3xl text-white hover:text-zinc-400 transition-all text-center" href="/rap-funxtion">RAP FUNXTION</Link>
+            <Link onClick={() => setIsMobileMenuOpen(false)} href="/services" className="mt-8 bg-white text-black px-10 py-4 font-headline font-bold text-lg tracking-widest uppercase active:scale-95 transition-all w-full max-w-xs text-center">Join the Hunt</Link>
           </nav>
         </div>
       )}

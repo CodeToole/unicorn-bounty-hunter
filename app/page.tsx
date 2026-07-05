@@ -60,29 +60,7 @@ export default function Page() {
               </div>
             </div>
           </div>
-          {/* Side Metadata (DAW Inspired) */}
-          <div className="absolute right-6 bottom-12 hidden lg:flex flex-col gap-8 text-right border-r border-secondary/20 pr-6">
-            <div>
-              <p className="font-label text-[10px] text-secondary tracking-widest uppercase mb-1">
-                Status
-              </p>
-              <p className="font-headline text-lg font-bold">RECORDING</p>
-            </div>
-            <div>
-              <p className="font-label text-[10px] text-secondary tracking-widest uppercase mb-1">
-                BPM
-              </p>
-              <p className="font-headline text-lg font-bold">128.00</p>
-            </div>
-            <div>
-              <p className="font-label text-[10px] text-secondary tracking-widest uppercase mb-1">
-                Location
-              </p>
-              <p className="font-headline text-lg font-bold uppercase">
-                London / Underground
-              </p>
-            </div>
-          </div>
+
         </section>
 
         {/* Music Section: Bento Grid Hybrid */}

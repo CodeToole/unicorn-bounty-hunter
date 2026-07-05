@@ -23,7 +23,7 @@ const config: Config = {
         "on-primary-fixed": "#3f4900",
         "on-secondary-fixed": "#003a42",
         "error-container": "#b92902",
-        "secondary": "#00e3fd",
+        "secondary": "#ffffff",
         "on-error": "#450900",
         "surface-container": "#1a1919",
         "outline": "#777575",

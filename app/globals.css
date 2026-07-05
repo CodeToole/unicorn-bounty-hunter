@@ -4,7 +4,7 @@
 @import "tailwindcss";
 
 @theme {
-  --color-secondary: #00e3fd;
+  --color-secondary: #ffffff;
   --color-surface: #0e0e0e;
   --color-on-surface: #ffffff;
   --color-on-surface-variant: #adaaaa;
@@ -35,5 +35,5 @@
 }
 
 .text-glow-secondary {
-  text-shadow: 0 0 20px rgba(0, 227, 253, 0.3);
+  text-shadow: 0 0 20px rgba(255, 255, 255, 0.15);
 }
