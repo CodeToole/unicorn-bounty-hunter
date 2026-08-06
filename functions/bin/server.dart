@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io' show Platform;
 
 import 'package:firebase_functions/firebase_functions.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
@@ -18,6 +17,22 @@ final GEMINI_API_KEY = defineSecret('GEMINI_API_KEY');
 // ──────────────────────────────────────────────────────────
 const _firestoreProjectId = 'ubh-production-2026';
 
+const _allowedOrigins = {
+  'https://unicornbountyhunters.com',
+  'https://ubh-production-2026.web.app',
+  'http://localhost:8080',
+  'http://localhost:3000',
+};
+
+String _getAllowedOrigin(Map<String, String> headers) {
+  final origin = headers['origin'] ?? headers['Origin'];
+  if (origin != null && _allowedOrigins.contains(origin)) {
+    return origin;
+  }
+  // Default to the first allowed origin if not matched or missing
+  return 'https://unicornbountyhunters.com';
+}
+
 /// Fetches an OAuth2 access token from the GCE metadata server.
 /// This is the standard way Cloud Run workloads authenticate to
 /// Google APIs without a service account key file.
@@ -35,8 +50,7 @@ Future<String> _getAccessToken() async {
       '(status ${tokenResponse.statusCode}): ${tokenResponse.body}',
     );
   }
-  final tokenData =
-      jsonDecode(tokenResponse.body) as Map<String, dynamic>;
+  final tokenData = jsonDecode(tokenResponse.body) as Map<String, dynamic>;
   return tokenData['access_token'] as String;
 }
 
@@ -60,7 +74,9 @@ Future<String> _writeLeadToFirestore({
   }
   // Add metadata fields.
   firestoreFields['source'] = {'stringValue': source};
-  firestoreFields['createdAt'] = {'timestampValue': DateTime.now().toUtc().toIso8601String()};
+  firestoreFields['createdAt'] = {
+    'timestampValue': DateTime.now().toUtc().toIso8601String(),
+  };
 
   final url = Uri.parse(
     'https://firestore.googleapis.com/v1/projects/$_firestoreProjectId/'
@@ -88,9 +104,7 @@ Future<String> _writeLeadToFirestore({
 }
 
 /// Writes a subscriber email to the Firestore `subscribers` collection.
-Future<String> _writeSubscriberToFirestore({
-  required String email,
-}) async {
+Future<String> _writeSubscriberToFirestore({required String email}) async {
   final accessToken = await _getAccessToken();
 
   final firestoreFields = <String, dynamic>{
@@ -126,12 +140,9 @@ Future<String> _writeSubscriberToFirestore({
 void main(List<String> args) async {
   await runFunctions((firebase) {
     // Basic HTTPS onRequest function
-    firebase.https.onRequest(
-      name: 'helloWorld',
-      (request) async {
-        return Response.ok('Hello from Dart Cloud Functions!');
-      },
-    );
+    firebase.https.onRequest(name: 'helloWorld', (request) async {
+      return Response.ok('Hello from Dart Cloud Functions!');
+    });
 
     // Basic callable function
     firebase.https.onCall(name: 'greet', (request, response) async {
@@ -143,135 +154,134 @@ void main(List<String> args) async {
     // ──────────────────────────────────────────────────────────
     // Direct-to-Consumer Email Capture
     // ──────────────────────────────────────────────────────────
-    firebase.https.onRequest(
-      name: 'subscribe',
-      (request) async {
-        // Handle CORS preflight request
-        if (request.method == 'OPTIONS') {
-          return Response(
-            204,
-            headers: {
-              'Access-Control-Allow-Origin': '*',
-              'Access-Control-Allow-Methods': 'POST, OPTIONS',
-              'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-            },
-          );
-        }
+    firebase.https.onRequest(name: 'subscribe', (request) async {
+      // Handle CORS preflight request
+      if (request.method == 'OPTIONS') {
+        return Response(
+          204,
+          headers: {
+            'Access-Control-Allow-Origin': _getAllowedOrigin(request.headers),
+            'Access-Control-Allow-Methods': 'POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+          },
+        );
+      }
 
-        if (request.method != 'POST') {
-          return Response(
-            405,
-            body: jsonEncode({'error': 'Method Not Allowed. Use POST.'}),
-            headers: {
-              'Content-Type': 'application/json',
-              'Access-Control-Allow-Origin': '*',
-            },
-          );
-        }
+      if (request.method != 'POST') {
+        return Response(
+          405,
+          body: jsonEncode({'error': 'Method Not Allowed. Use POST.'}),
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': _getAllowedOrigin(request.headers),
+          },
+        );
+      }
 
-        final String bodyString;
+      final String bodyString;
+      try {
+        bodyString = await request.readAsString();
+      } on Exception catch (e) {
+        logger.error('Failed to read request body', {
+          'endpoint': 'subscribe',
+          'error': e.toString(),
+        });
+        return Response(
+          400,
+          body: jsonEncode({'error': 'Unable to read request body.'}),
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': _getAllowedOrigin(request.headers),
+          },
+        );
+      }
+
+      final Map<String, dynamic> payload;
+      try {
+        payload = jsonDecode(bodyString) as Map<String, dynamic>;
+      } on FormatException {
+        return Response(
+          400,
+          body: jsonEncode({'error': 'Invalid JSON payload.'}),
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': _getAllowedOrigin(request.headers),
+          },
+        );
+      }
+
+      final email = payload['email'] as String?;
+      if (email == null || email.isEmpty) {
+        return Response(
+          400,
+          body: jsonEncode({'error': 'Missing required field: email.'}),
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': _getAllowedOrigin(request.headers),
+          },
+        );
+      }
+
+      try {
+        final docName = await _writeSubscriberToFirestore(email: email);
+        logger.info('Subscriber captured to Firestore', {
+          'endpoint': 'subscribe',
+          'firestoreDoc': docName,
+          'email': email,
+        });
+
         try {
-          bodyString = await request.readAsString();
-        } on Exception catch (e) {
-          logger.error('Failed to read request body', {
+          final webhookUrl = Uri.parse(
+            'https://script.google.com/macros/s/AKfycbyfqQ-JqgVpyq9jfx0ykcabSpegIEowHWirx60B7RwY3rVYk-u6-nvqAvwQAQnDgDWH8g/exec',
+          );
+          await http
+              .post(
+                webhookUrl,
+                headers: {'Content-Type': 'application/json'},
+                body: jsonEncode({'email': email}),
+              )
+              .timeout(const Duration(seconds: 10));
+          logger.info('Subscriber forwarded to Google Workspace webhook', {
             'endpoint': 'subscribe',
-            'error': e.toString(),
-          });
-          return Response(
-            400,
-            body: jsonEncode({'error': 'Unable to read request body.'}),
-            headers: {
-              'Content-Type': 'application/json',
-              'Access-Control-Allow-Origin': '*',
-            },
-          );
-        }
-
-        final Map<String, dynamic> payload;
-        try {
-          payload = jsonDecode(bodyString) as Map<String, dynamic>;
-        } on FormatException {
-          return Response(
-            400,
-            body: jsonEncode({'error': 'Invalid JSON payload.'}),
-            headers: {
-              'Content-Type': 'application/json',
-              'Access-Control-Allow-Origin': '*',
-            },
-          );
-        }
-
-        final email = payload['email'] as String?;
-        if (email == null || email.isEmpty) {
-          return Response(
-            400,
-            body: jsonEncode({'error': 'Missing required field: email.'}),
-            headers: {
-              'Content-Type': 'application/json',
-              'Access-Control-Allow-Origin': '*',
-            },
-          );
-        }
-
-        try {
-          final docName = await _writeSubscriberToFirestore(email: email);
-          logger.info('Subscriber captured to Firestore', {
-            'endpoint': 'subscribe',
-            'firestoreDoc': docName,
             'email': email,
           });
-
-          try {
-            final webhookUrl = Uri.parse(
-              'https://script.google.com/macros/s/AKfycbyfqQ-JqgVpyq9jfx0ykcabSpegIEowHWirx60B7RwY3rVYk-u6-nvqAvwQAQnDgDWH8g/exec',
-            );
-            await http.post(
-              webhookUrl,
-              headers: {'Content-Type': 'application/json'},
-              body: jsonEncode({'email': email}),
-            ).timeout(const Duration(seconds: 10));
-            logger.info('Subscriber forwarded to Google Workspace webhook', {
-              'endpoint': 'subscribe',
-              'email': email,
-            });
-          } on Exception catch (e) {
-            logger.error('Google Workspace webhook failed', {
-              'endpoint': 'subscribe',
-              'email': email,
-              'error': e.toString(),
-            });
-          }
-
-          return Response.ok(
-            jsonEncode({
-              'status': 'success',
-              'message': 'Subscribed successfully.',
-            }),
-            headers: {
-              'Content-Type': 'application/json',
-              'Access-Control-Allow-Origin': '*',
-            },
-          );
         } on Exception catch (e) {
-          logger.error('Firestore subscriber capture failed', {
+          logger.error('Google Workspace webhook failed', {
             'endpoint': 'subscribe',
             'email': email,
             'error': e.toString(),
           });
-          return Response(
-            500,
-            body: jsonEncode({
-              'error': 'Internal server error.',
-              'details': e.toString(),
-            }),
-            headers: {
-              'Content-Type': 'application/json',
-              'Access-Control-Allow-Origin': '*',
-            },
-          );
         }
-      },
-    );
+
+        return Response.ok(
+          jsonEncode({
+            'status': 'success',
+            'message': 'Subscribed successfully.',
+          }),
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': _getAllowedOrigin(request.headers),
+          },
+        );
+      } on Exception catch (e) {
+        logger.error('Firestore subscriber capture failed', {
+          'endpoint': 'subscribe',
+          'email': email,
+          'error': e.toString(),
+        });
+        return Response(
+          500,
+          body: jsonEncode({
+            'error': 'Internal server error.',
+            'details': e.toString(),
+          }),
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': _getAllowedOrigin(request.headers),
+          },
+        );
+      }
+    });
 
     // ──────────────────────────────────────────────────────────
     // Studio Booking Process
@@ -280,99 +290,92 @@ void main(List<String> args) async {
     // books a $50/hr studio block. Accepts POST with JSON body:
     //   { "artistName", "requestedDate", "blockDuration" }
     // ──────────────────────────────────────────────────────────
-    firebase.https.onRequest(
-      name: 'studioBookingProcess',
-      (request) async {
-        if (request.method != 'POST') {
-          return Response(
-            405,
-            body: jsonEncode({
-              'error': 'Method Not Allowed. Use POST.',
-            }),
-            headers: {'Content-Type': 'application/json'},
-          );
-        }
+    firebase.https.onRequest(name: 'studioBookingProcess', (request) async {
+      if (request.method != 'POST') {
+        return Response(
+          405,
+          body: jsonEncode({'error': 'Method Not Allowed. Use POST.'}),
+          headers: {'Content-Type': 'application/json'},
+        );
+      }
 
-        final String bodyString;
-        try {
-          bodyString = await request.readAsString();
-        } on Exception catch (e) {
-          logger.error('Failed to read request body', {
-            'endpoint': 'studioBookingProcess',
-            'error': e.toString(),
-          });
-          return Response(
-            400,
-            body: jsonEncode({'error': 'Unable to read request body.'}),
-            headers: {'Content-Type': 'application/json'},
-          );
-        }
-
-        final Map<String, dynamic> payload;
-        try {
-          payload = jsonDecode(bodyString) as Map<String, dynamic>;
-        } on FormatException {
-          return Response(
-            400,
-            body: jsonEncode({'error': 'Invalid JSON payload.'}),
-            headers: {'Content-Type': 'application/json'},
-          );
-        }
-
-        final artistName = payload['artistName'] as String?;
-        final requestedDate = payload['requestedDate'] as String?;
-        final blockDuration = payload['blockDuration'] as int?;
-
-        if (artistName == null ||
-            requestedDate == null ||
-            blockDuration == null) {
-          return Response(
-            400,
-            body: jsonEncode({
-              'error':
-                  'Missing required fields: artistName, requestedDate, '
-                  'blockDuration.',
-            }),
-            headers: {'Content-Type': 'application/json'},
-          );
-        }
-
-        logger.info('Studio booking received', {
+      final String bodyString;
+      try {
+        bodyString = await request.readAsString();
+      } on Exception catch (e) {
+        logger.error('Failed to read request body', {
           'endpoint': 'studioBookingProcess',
-          'artistName': artistName,
-          'requestedDate': requestedDate,
-          'blockDuration': blockDuration,
-          'ratePerHour': 50,
-          'estimatedTotal': blockDuration * 50,
+          'error': e.toString(),
         });
+        return Response(
+          400,
+          body: jsonEncode({'error': 'Unable to read request body.'}),
+          headers: {'Content-Type': 'application/json'},
+        );
+      }
 
-        return Response.ok(
-          jsonEncode({
-            'status': 'received',
-            'message':
-                'Booking request for $artistName on $requestedDate '
-                '($blockDuration hr) logged successfully.',
+      final Map<String, dynamic> payload;
+      try {
+        payload = jsonDecode(bodyString) as Map<String, dynamic>;
+      } on FormatException {
+        return Response(
+          400,
+          body: jsonEncode({'error': 'Invalid JSON payload.'}),
+          headers: {'Content-Type': 'application/json'},
+        );
+      }
+
+      final artistName = payload['artistName'] as String?;
+      final requestedDate = payload['requestedDate'] as String?;
+      final blockDuration = payload['blockDuration'] as int?;
+
+      if (artistName == null ||
+          requestedDate == null ||
+          blockDuration == null) {
+        return Response(
+          400,
+          body: jsonEncode({
+            'error':
+                'Missing required fields: artistName, requestedDate, '
+                'blockDuration.',
           }),
           headers: {'Content-Type': 'application/json'},
         );
-      },
-    );
+      }
+
+      logger.info('Studio booking received', {
+        'endpoint': 'studioBookingProcess',
+        'artistName': artistName,
+        'requestedDate': requestedDate,
+        'blockDuration': blockDuration,
+        'ratePerHour': 50,
+        'estimatedTotal': blockDuration * 50,
+      });
+
+      return Response.ok(
+        jsonEncode({
+          'status': 'received',
+          'message':
+              'Booking request for $artistName on $requestedDate '
+              '($blockDuration hr) logged successfully.',
+        }),
+        headers: {'Content-Type': 'application/json'},
+      );
+    });
 
     // ──────────────────────────────────────────────────────────
     // Create Stripe Checkout Session
     // ──────────────────────────────────────────────────────────
     firebase.https.onRequest(
       name: 'createStripeCheckout',
-      options: HttpsOptions(
-        secrets: [STRIPE_SECRET_KEY],
-      ),
+      options: HttpsOptions(secrets: [STRIPE_SECRET_KEY]),
       (request) async {
         // Handle CORS preflight request
         if (request.method == 'OPTIONS') {
           return Response(
             204,
             headers: {
-              'Access-Control-Allow-Origin': '*',
+              'Access-Control-Allow-Origin': _getAllowedOrigin(request.headers),
               'Access-Control-Allow-Methods': 'POST, OPTIONS',
               'Access-Control-Allow-Headers': 'Content-Type, Authorization',
             },
@@ -385,7 +388,7 @@ void main(List<String> args) async {
             body: jsonEncode({'error': 'Method Not Allowed. Use POST.'}),
             headers: {
               'Content-Type': 'application/json',
-              'Access-Control-Allow-Origin': '*',
+              'Access-Control-Allow-Origin': _getAllowedOrigin(request.headers),
             },
           );
         }
@@ -403,7 +406,7 @@ void main(List<String> args) async {
             body: jsonEncode({'error': 'Unable to read request body.'}),
             headers: {
               'Content-Type': 'application/json',
-              'Access-Control-Allow-Origin': '*',
+              'Access-Control-Allow-Origin': _getAllowedOrigin(request.headers),
             },
           );
         }
@@ -417,7 +420,7 @@ void main(List<String> args) async {
             body: jsonEncode({'error': 'Invalid JSON payload.'}),
             headers: {
               'Content-Type': 'application/json',
-              'Access-Control-Allow-Origin': '*',
+              'Access-Control-Allow-Origin': _getAllowedOrigin(request.headers),
             },
           );
         }
@@ -427,15 +430,18 @@ void main(List<String> args) async {
         final sessionName = payload['sessionName'] as String?;
         final email = payload['email'] as String?;
 
-        if (artistName == null || blockDuration == null || sessionName == null) {
+        if (artistName == null ||
+            blockDuration == null ||
+            sessionName == null) {
           return Response(
             400,
             body: jsonEncode({
-              'error': 'Missing required fields: artistName, blockDuration, sessionName.',
+              'error':
+                  'Missing required fields: artistName, blockDuration, sessionName.',
             }),
             headers: {
               'Content-Type': 'application/json',
-              'Access-Control-Allow-Origin': '*',
+              'Access-Control-Allow-Origin': _getAllowedOrigin(request.headers),
             },
           );
         }
@@ -481,7 +487,7 @@ void main(List<String> args) async {
             }),
             headers: {
               'Content-Type': 'application/json',
-              'Access-Control-Allow-Origin': '*',
+              'Access-Control-Allow-Origin': _getAllowedOrigin(request.headers),
             },
           );
         }
@@ -500,15 +506,19 @@ void main(List<String> args) async {
               'cancel_url': 'https://ubh-production-2026.web.app/services',
               'mode': 'payment',
               'line_items[0][price_data][currency]': 'usd',
-              'line_items[0][price_data][product_data][name]': '$sessionName - $artistName',
-              'line_items[0][price_data][unit_amount]': totalCostInCents.toString(),
+              'line_items[0][price_data][product_data][name]':
+                  '$sessionName - $artistName',
+              'line_items[0][price_data][unit_amount]':
+                  totalCostInCents.toString(),
               'line_items[0][quantity]': '1',
               if (email != null && email.isNotEmpty) 'customer_email': email,
             },
           );
 
-          if (stripeResponse.statusCode == 200 || stripeResponse.statusCode == 201) {
-            final Map<String, dynamic> stripeData = jsonDecode(stripeResponse.body) as Map<String, dynamic>;
+          if (stripeResponse.statusCode == 200 ||
+              stripeResponse.statusCode == 201) {
+            final Map<String, dynamic> stripeData =
+                jsonDecode(stripeResponse.body) as Map<String, dynamic>;
             final checkoutUrl = stripeData['url'] as String?;
 
             if (checkoutUrl == null) {
@@ -521,7 +531,9 @@ void main(List<String> args) async {
                 body: jsonEncode({'error': 'Failed to generate checkout URL.'}),
                 headers: {
                   'Content-Type': 'application/json',
-                  'Access-Control-Allow-Origin': '*',
+                  'Access-Control-Allow-Origin': _getAllowedOrigin(
+                    request.headers,
+                  ),
                 },
               );
             }
@@ -530,7 +542,9 @@ void main(List<String> args) async {
               jsonEncode({'checkoutUrl': checkoutUrl}),
               headers: {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Origin': _getAllowedOrigin(
+                  request.headers,
+                ),
               },
             );
           } else {
@@ -547,7 +561,9 @@ void main(List<String> args) async {
               }),
               headers: {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Origin': _getAllowedOrigin(
+                  request.headers,
+                ),
               },
             );
           }
@@ -564,7 +580,7 @@ void main(List<String> args) async {
             }),
             headers: {
               'Content-Type': 'application/json',
-              'Access-Control-Allow-Origin': '*',
+              'Access-Control-Allow-Origin': _getAllowedOrigin(request.headers),
             },
           );
         }
@@ -583,16 +599,12 @@ void main(List<String> args) async {
     // ──────────────────────────────────────────────────────────
     firebase.https.onRequest(
       name: 'musicalChairsIntake',
-      options: HttpsOptions(
-        secrets: [GEMINI_API_KEY],
-      ),
+      options: HttpsOptions(secrets: [GEMINI_API_KEY]),
       (request) async {
         if (request.method != 'POST') {
           return Response(
             405,
-            body: jsonEncode({
-              'error': 'Method Not Allowed. Use POST.',
-            }),
+            body: jsonEncode({'error': 'Method Not Allowed. Use POST.'}),
             headers: {'Content-Type': 'application/json'},
           );
         }
@@ -653,8 +665,7 @@ void main(List<String> args) async {
           return Response(
             500,
             body: jsonEncode({
-              'error':
-                  'AI Evaluation infrastructure configuration failure.',
+              'error': 'AI Evaluation infrastructure configuration failure.',
             }),
             headers: {'Content-Type': 'application/json'},
           );
@@ -707,11 +718,12 @@ Return a strict, flat JSON response matching this model schema exactly:
             'artistName': artistName,
           });
         } on Exception catch (e) {
-          logger.error('Firestore lead capture failed — continuing to AI eval', {
-            'endpoint': 'musicalChairsIntake',
-            'artistName': artistName,
-            'error': e.toString(),
-          });
+          logger
+              .error('Firestore lead capture failed — continuing to AI eval', {
+                'endpoint': 'musicalChairsIntake',
+                'artistName': artistName,
+                'error': e.toString(),
+              });
         }
 
         logger.info('Sending application to Gemini evaluation engine', {
@@ -722,9 +734,7 @@ Return a strict, flat JSON response matching this model schema exactly:
         });
 
         try {
-          final response = await model.generateContent([
-            Content.text(prompt),
-          ]);
+          final response = await model.generateContent([Content.text(prompt)]);
           final aiResult = response.text ?? '{}';
 
           return Response.ok(
