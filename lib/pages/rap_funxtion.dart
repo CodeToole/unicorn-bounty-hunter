@@ -39,14 +39,14 @@ class RapFunxtion extends StatelessComponent {
               classes: 'text-center',
               [
                 h1(
-                  [Component.text('RAP FUNXTION 16')],
+                  [Component.text('RAP FUNXTION — RESCHEDULING IN PROGRESS')],
                   classes:
                       'text-5xl md:text-7xl font-black tracking-tighter text-white leading-none font-["Space_Grotesk"] uppercase',
                 ),
                 p(
-                  [Component.text('Live Energy. Underground Prestige.')],
+                  [Component.text('The July 19th showcase has been postponed. New dates, venue details, and line-up configurations are currently being finalized. Join the Hunt via our email list to receive immediate confirmation when the new date drops.')],
                   classes:
-                      'text-zinc-400 font-["Manrope"] text-lg tracking-widest uppercase mt-4',
+                      'text-zinc-400 font-["Manrope"] text-base md:text-lg tracking-wide mt-6 max-w-2xl mx-auto',
                 ),
               ],
             ),
@@ -66,147 +66,7 @@ class RapFunxtion extends StatelessComponent {
               ],
             ),
 
-            // ──────────────────────────────────────────────
-            //  EVENT DETAILS — Black & Gold
-            // ──────────────────────────────────────────────
-            div(
-              classes:
-                  'bg-[#0d0d0d] border border-[#D4AF37]/30 rounded-2xl p-8 md:p-12 text-center space-y-6',
-              [
-                // Section label
-                div(
-                  classes: 'flex items-center justify-center gap-4 mb-2',
-                  [
-                    div(
-                      classes:
-                          'w-16 h-[1px] bg-gradient-to-r from-transparent to-[#D4AF37]/60',
-                      [],
-                    ),
-                    span(
-                      classes:
-                          'font-["Manrope"] text-[#D4AF37] text-xs tracking-[0.5em] uppercase',
-                      [Component.text('EVENT DETAILS')],
-                    ),
-                    div(
-                      classes:
-                          'w-16 h-[1px] bg-gradient-to-l from-transparent to-[#D4AF37]/60',
-                      [],
-                    ),
-                  ],
-                ),
-
-                // Date
-                div(
-                  classes: 'space-y-1',
-                  [
-                    span(
-                      classes:
-                          'font-["Manrope"] text-[#D4AF37] text-xs tracking-[0.3em] uppercase block',
-                      [Component.text('DATE')],
-                    ),
-                    p(
-                      [
-                        Component.text(
-                            'Sunday, July 19, 2026')
-                      ],
-                      classes:
-                          'text-white font-["Space_Grotesk"] text-lg md:text-xl font-bold tracking-wide',
-                    ),
-                  ],
-                ),
-
-                // Divider
-                div(
-                  classes: 'w-20 h-[1px] bg-[#D4AF37]/30 mx-auto',
-                  [],
-                ),
-
-                // Location
-                div(
-                  classes: 'space-y-1',
-                  [
-                    span(
-                      classes:
-                          'font-["Manrope"] text-[#D4AF37] text-xs tracking-[0.3em] uppercase block',
-                      [Component.text('LOCATION')],
-                    ),
-                    p(
-                      [
-                        Component.text(
-                            'Rat Trap · 3500 W Cervantes, Pensacola, FL')
-                      ],
-                      classes:
-                          'text-white font-["Space_Grotesk"] text-lg md:text-xl font-bold tracking-wide',
-                    ),
-                  ],
-                ),
-
-                // Divider
-                div(
-                  classes: 'w-20 h-[1px] bg-[#D4AF37]/30 mx-auto',
-                  [],
-                ),
-
-                // Time
-                div(
-                  classes: 'space-y-1',
-                  [
-                    span(
-                      classes:
-                          'font-["Manrope"] text-[#D4AF37] text-xs tracking-[0.3em] uppercase block',
-                      [Component.text('TIME')],
-                    ),
-                    p(
-                      [
-                        Component.text(
-                            'Doors open at 6:00 PM | Show starts at 7:30 PM')
-                      ],
-                      classes:
-                          'text-white font-["Space_Grotesk"] text-lg md:text-xl font-bold tracking-wide',
-                    ),
-                  ],
-                ),
-
-                // Divider
-                div(
-                  classes: 'w-20 h-[1px] bg-[#D4AF37]/30 mx-auto',
-                  [],
-                ),
-
-                // Admission
-                div(
-                  classes: 'space-y-1',
-                  [
-                    span(
-                      classes:
-                          'font-["Manrope"] text-[#D4AF37] text-xs tracking-[0.3em] uppercase block',
-                      [Component.text('ADMISSION')],
-                    ),
-                    p(
-                      [Component.text('\$10 at the door')],
-                      classes:
-                          'text-white font-["Space_Grotesk"] text-2xl md:text-3xl font-black tracking-wide',
-                    ),
-                  ],
-                ),
-              ],
-            ),
-
-            // ──────────────────────────────────────────────
-            //  TICKETS BUTTON
-            // ──────────────────────────────────────────────
-            div(
-              classes: 'flex justify-center',
-              [
-                a(
-                  [Component.text('BUY TICKETS')],
-                  href: 'https://buytickets.at/ubh/2275875',
-                  target: Target.blank,
-                  classes:
-                      'bg-black border border-[#D4AF37] text-[#D4AF37] font-bold py-4 px-8 mt-6 uppercase tracking-widest hover:bg-[#D4AF37] hover:text-black transition-colors duration-300 block text-center',
-                ),
-              ],
-            ),
+            // (── EVENT DETAILS CARD REMOVED — RF16 cancelled, rescheduling in progress ──)
 
             // ──────────────────────────────────────────────
             //  THE LINEUP

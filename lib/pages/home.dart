@@ -69,19 +69,7 @@ class Home extends StatelessComponent {
           [],
         ),
 
-        // FLOATING CTA
-        div(
-          classes: 'fixed bottom-8 left-0 right-0 z-50 flex justify-center px-6 pointer-events-none',
-          [
-            a(
-              [Component.text('RAP FUNXTION 16 – JULY 19 – GET TICKETS')],
-              href: 'https://buytickets.at/ubh/2275875',
-              target: Target.blank,
-              classes:
-                  'pointer-events-auto bg-black border border-[#D4AF37] text-[#D4AF37] font-bold py-4 px-8 uppercase tracking-widest hover:bg-[#D4AF37] hover:text-black transition-colors duration-300 shadow-2xl text-center',
-            ),
-          ],
-        ),
+        // FLOATING CTA — REMOVED (RF16 cancelled, rescheduling in progress)
 
         // LAYER 3: The Scrolling Content
         div(

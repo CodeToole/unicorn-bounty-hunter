@@ -1,6 +1,6 @@
 {
   "hosting": {
-    "public": "ubh_jaspr/build/jaspr",
+    "public": "build/jaspr",
     "headers": [
       {
         "source": "**",
