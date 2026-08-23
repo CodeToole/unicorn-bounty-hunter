@@ -1,0 +1,18 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Public read for event flyers and audio assets
+    match /flyers/{allPaths=**} {
+      allow read: if true;
+      allow write: if false; // Signed upload URLs or Admin SDK only
+    }
+    match /assets/{allPaths=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /{allPaths=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+  }
+}

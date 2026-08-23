@@ -1,0 +1,22 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Public read for events, showcases, and available booking slots
+    match /events/{eventId} {
+      allow read: if true;
+      allow write: if false; // Only via backend admin SDK
+    }
+    match /showcases/{showcaseId} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /booking_slots/{slotId} {
+      allow read: if true;
+      allow write: if false;
+    }
+    // Subscribers collection: write-only from trusted backend
+    match /subscribers/{email} {
+      allow read, write: if false;
+    }
+  }
+}

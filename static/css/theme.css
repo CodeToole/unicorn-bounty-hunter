@@ -1,0 +1,223 @@
+/* ==========================================================================
+   Unicorn Bounty Hunters (UBH) — Premium Brand Theme & Design System
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700;900&display=swap');
+
+:root {
+  --color-bg: #0A0A0A;
+  --color-bg-darker: #050505;
+  --color-bg-card: #0D0D0D;
+  --color-bg-card-hover: #141414;
+  --color-gold: #D4AF37;
+  --color-gold-bright: #FFD700;
+  --color-gold-glow: rgba(212, 175, 55, 0.25);
+  --color-gold-border: rgba(212, 175, 55, 0.35);
+  --color-border-dark: #1A1A1A;
+  --color-border-light: #262626;
+  --color-text-main: #FFFFFF;
+  --color-text-muted: #A1A1A1;
+  --color-text-subtle: #71717A;
+  
+  --font-heading: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-body: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  background-color: var(--color-bg);
+  color: var(--color-text-main);
+  font-family: var(--font-body);
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--color-bg);
+  color: var(--color-text-main);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+}
+
+::selection {
+  background-color: var(--color-gold);
+  color: #000000;
+}
+
+/* Scrollbar Customization */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-bg-darker);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #222222;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-gold);
+}
+
+/* Typography Utility Classes */
+.font-heading {
+  font-family: var(--font-heading);
+}
+
+.font-body {
+  font-family: var(--font-body);
+}
+
+.text-gold {
+  color: var(--color-gold);
+}
+
+.text-gold-bright {
+  color: var(--color-gold-bright);
+}
+
+.bg-gold {
+  background-color: var(--color-gold);
+}
+
+.border-gold {
+  border-color: var(--color-gold);
+}
+
+.border-gold-subtle {
+  border-color: var(--color-gold-border);
+}
+
+/* Glow & Glassmorphism */
+.gold-glow {
+  box-shadow: 0 0 25px var(--color-gold-glow);
+}
+
+.gold-glow-lg {
+  box-shadow: 0 0 45px var(--color-gold-glow);
+}
+
+.gold-glow-text {
+  text-shadow: 0 0 20px rgba(212, 175, 55, 0.4);
+}
+
+.glass-panel {
+  background: rgba(13, 13, 13, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--color-border-dark);
+}
+
+.glass-panel:hover {
+  border-color: var(--color-gold-border);
+}
+
+/* Cards and Hover effects */
+.card-hover-gold {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-hover-gold:hover {
+  transform: translateY(-4px);
+  border-color: var(--color-gold);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.8), 0 0 20px var(--color-gold-glow);
+}
+
+/* Buttons */
+.btn-gold {
+  background-color: var(--color-gold);
+  color: #050505;
+  font-family: var(--font-heading);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.875rem 1.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--color-gold);
+  transition: all 0.25s ease;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-gold:hover {
+  background-color: var(--color-gold-bright);
+  box-shadow: 0 0 25px rgba(212, 175, 55, 0.4);
+  transform: translateY(-1px);
+}
+
+.btn-gold-outline {
+  background-color: transparent;
+  color: var(--color-gold);
+  font-family: var(--font-heading);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.875rem 1.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--color-gold);
+  transition: all 0.25s ease;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-gold-outline:hover {
+  background-color: var(--color-gold);
+  color: #050505;
+  box-shadow: 0 0 25px rgba(212, 175, 55, 0.3);
+}
+
+/* Datastar SSE Transitions */
+.datastar-transition {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.datastar-swapping {
+  opacity: 0.5;
+  transform: scale(0.98);
+}
+
+/* Form Styles */
+.input-dark {
+  background-color: #121212;
+  border: 1px solid #222222;
+  color: #FFFFFF;
+  padding: 0.875rem 1rem;
+  border-radius: 0.5rem;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.input-dark:focus {
+  border-color: var(--color-gold);
+  box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.2);
+}
+
+.input-dark::placeholder {
+  color: #555555;
+}
+
+/* Animation utilities */
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(1.02); }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 4s infinite ease-in-out;
+}
