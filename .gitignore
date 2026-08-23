@@ -1,3 +1,10 @@
+# Python & Environment
+.env
+.env.*
+.venv/
+__pycache__/
+*.pyc
+
 # Files and directories created by pub.
 **/doc/api/
 .dart_tool/
@@ -9,7 +16,6 @@
 # Miscellaneous
 *.class
 *.log
-*.pyc
 *.swp
 .DS_Store
 .atom/
@@ -23,8 +29,4 @@ migrate_working_dir/
 *.ipr
 *.iws
 .idea/
-
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
+.vscode/

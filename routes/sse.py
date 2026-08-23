@@ -4,6 +4,7 @@ from components.calendar import RenderSlotOptions
 from components.artist_profile import _post_card
 from services.firebase_service import get_slots_for_date, get_artist_posts
 import datetime
+import json
 
 sse_app = FastHTML()
 rt = sse_app.route
@@ -12,6 +13,13 @@ rt = sse_app.route
 async def get_available_slots(req):
     # Extract requested date from query parameters or datastar signals
     date = req.query_params.get("booking_date") or req.query_params.get("date")
+    if not date and "datastar" in req.query_params:
+        try:
+            signal_data = json.loads(req.query_params["datastar"])
+            date = signal_data.get("booking_date") or signal_data.get("date")
+        except Exception:
+            pass
+
     if not date:
         date = datetime.date.today().isoformat()
 

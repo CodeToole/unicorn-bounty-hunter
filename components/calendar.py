@@ -90,6 +90,20 @@ def BookingCalendar(selected_date: str = "", slots: List[Dict[str, Any]] = None)
         slots = []
 
     today_str = datetime.date.today().isoformat()
+    base_date = datetime.date.today()
+
+    # Generate upcoming 14 days for the dropdown selector
+    upcoming_dates = []
+    for i in range(14):
+        d = base_date + datetime.timedelta(days=i)
+        d_iso = d.isoformat()
+        if i == 0:
+            label = f"Today — {d.strftime('%A, %b %d')}"
+        elif i == 1:
+            label = f"Tomorrow — {d.strftime('%A, %b %d')}"
+        else:
+            label = d.strftime("%A, %b %d, %Y")
+        upcoming_dates.append((d_iso, label))
 
     return Div(
         Div(
@@ -100,19 +114,34 @@ def BookingCalendar(selected_date: str = "", slots: List[Dict[str, Any]] = None)
                 P("Select your creative package and lock in engineer availability. Real-time slot verification with instant confirmation.", cls="text-neutral-400 text-xs md:text-sm max-w-lg mb-6"),
                 cls="text-center md:text-left"
             ),
-            # Date Picker Control with Datastar SSE event trigger
+            # Date Picker / Dropdown Selector Control with Datastar SSE event trigger
             Div(
-                Label("SELECT SESSION DATE:", cls="block text-xs font-heading font-bold text-neutral-300 tracking-wider mb-2"),
-                Input(
-                    type="date",
-                    id="booking-date",
-                    name="booking_date",
-                    value=selected_date,
-                    min=today_str,
-                    # Datastar SSE trigger: dynamically calls SSE endpoint on change to stream updated slots
-                    data_on_change="$$get('/sse/available-slots')",
-                    data_bind="booking_date",
-                    cls="bg-[#121212] border border-[#2A2A2A] focus:border-[#D4AF37] text-white p-3.5 rounded-lg w-full outline-none font-body text-sm transition-all focus:ring-1 focus:ring-[#D4AF37]"
+                Label("SELECT RECORDING DATE:", cls="block text-xs font-heading font-bold text-neutral-300 tracking-wider mb-2 uppercase"),
+                # Dropdown Selector
+                Div(
+                    Select(
+                        *[Option(label, value=val, selected=(val == selected_date)) for val, label in upcoming_dates],
+                        id="booking-date-select",
+                        name="booking_date",
+                        data_on_change="$$get('/sse/available-slots?booking_date=' + this.value)",
+                        data_bind="booking_date",
+                        cls="bg-[#121212] border border-[#2A2A2A] focus:border-[#D4AF37] text-white p-3.5 rounded-xl w-full outline-none font-body text-sm transition-all focus:ring-1 focus:ring-[#D4AF37] cursor-pointer mb-2 font-medium"
+                    ),
+                    # Custom calendar picker sub-row
+                    Div(
+                        Span("Or custom date:", cls="text-[11px] text-neutral-500 font-mono"),
+                        Input(
+                            type="date",
+                            id="booking-date",
+                            name="booking_date_custom",
+                            value=selected_date,
+                            min=today_str,
+                            data_on_change="$$get('/sse/available-slots?booking_date=' + this.value)",
+                            cls="bg-[#121212] border border-[#2A2A2A] focus:border-[#D4AF37] text-white p-2 rounded-lg text-xs outline-none font-mono transition-all focus:ring-1 focus:ring-[#D4AF37]"
+                        ),
+                        cls="flex items-center justify-between px-1"
+                    ),
+                    cls="space-y-1.5"
                 ),
                 cls="mb-6",
                 id="calendar-controls"
@@ -136,7 +165,7 @@ def RenderSlotOptions(slots: List[Dict[str, Any]], selected_date: str = ""):
             Div(
                 Span("⚠️", cls="text-3xl mb-2 block"),
                 H4("No Available Slots for Selected Date", cls="text-white font-heading font-bold text-base mb-1"),
-                P(f"All recording locks are booked or blocked for {selected_date}. Please select another date on the calendar above.", cls="text-neutral-400 text-xs max-w-sm mx-auto"),
+                P(f"All recording locks are booked or blocked for {selected_date}. Please select another date on the calendar dropdown above.", cls="text-neutral-400 text-xs max-w-sm mx-auto"),
                 cls="text-center py-8 px-4 bg-[#121212] border border-[#222222] rounded-xl mb-4"
             ),
             id="slot-container"

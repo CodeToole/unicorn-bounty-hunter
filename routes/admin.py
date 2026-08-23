@@ -10,6 +10,7 @@ from config import ADMIN_KEY
 from services.firebase_service import (
     get_all_slots_for_date_admin,
     update_slot_status,
+    reset_slot_booking,
     get_events,
     add_event,
     get_showcases,
@@ -144,11 +145,24 @@ def get_admin(key: str = "", date: str = "", tab: str = "slots", msg: str = ""):
                             slot.get("status", "available").upper(),
                             cls=f"text-xs font-mono font-bold { 'text-emerald-400' if slot.get('status') == 'available' else 'text-amber-400' if slot.get('status') == 'booked' else 'text-rose-400' }"
                         ),
-                        P(f"Artist: {slot.get('artist_name')} ({slot.get('artist_email')})", cls="text-xs text-[#D4AF37] mt-1") if slot.get("artist_name") else None,
+                        Div(
+                            Span(f"👤 Booked by: {slot.get('artist_name')} ({slot.get('artist_email')})", cls="text-xs text-[#D4AF37] font-semibold block"),
+                            Span(f"📦 Service: {slot.get('package_name') or slot.get('package_type') or 'Studio Recording'}", cls="text-[11px] text-neutral-300 block mt-0.5") if (slot.get("package_name") or slot.get("package_type")) else None,
+                            cls="mt-2 p-2.5 bg-[#1C1C1C] border border-[#333333] rounded-lg"
+                        ) if slot.get("artist_name") else None,
                         cls="flex-grow"
                     ),
-                    # Action buttons to change status
+                    # Action buttons to change status / clear booking
                     Div(
+                        # Clear / Delete Booking Button (appears whenever slot has booking info or is marked booked)
+                        Form(
+                            Input(type="hidden", name="key", value=key),
+                            Input(type="hidden", name="slot_id", value=slot["id"]),
+                            Input(type="hidden", name="date", value=date),
+                            Button("🗑️ Clear / Delete Booking", type="submit", cls="text-[10px] bg-red-950 text-red-300 border border-red-800 hover:bg-red-800 hover:text-white px-2.5 py-1 rounded cursor-pointer font-bold transition-all"),
+                            action="/admin/slots/delete",
+                            method="POST"
+                        ) if (slot.get("status") == "booked" or slot.get("artist_name")) else None,
                         Form(
                             Input(type="hidden", name="key", value=key),
                             Input(type="hidden", name="slot_id", value=slot["id"]),
@@ -389,6 +403,20 @@ async def post_admin_slot_update(req):
 
     update_slot_status(slot_id, status)
     return RedirectResponse(f"/admin?key={key}&tab=slots&date={date}&msg=Slot+status+updated+to+{status}", status_code=303)
+
+@rt("/admin/slots/delete")
+def post_admin_slot_delete(key: str = "", slot_id: str = "", date: str = ""):
+    """Delete a customer booking and reset the slot back to available."""
+    if key != ADMIN_KEY:
+        return RedirectResponse("/admin", status_code=303)
+
+    reset_slot_booking(slot_id)
+    return RedirectResponse(f"/admin?key={key}&tab=slots&date={date}&msg=Booking+deleted+and+slot+re-opened+for+booking", status_code=303)
+
+@rt("/admin/slots/reset")
+def post_admin_slot_reset(key: str = "", slot_id: str = "", date: str = ""):
+    """Reset a slot back to available (alias for delete)."""
+    return post_admin_slot_delete(key=key, slot_id=slot_id, date=date)
 
 @rt("/admin/showcases/add")
 async def post_admin_showcase_add(req):

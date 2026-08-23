@@ -192,6 +192,39 @@ def update_slot_status(
         return True
     return False
 
+def reset_slot_booking(slot_id: str) -> bool:
+    """Reset a slot back to 'available' and clear all customer/artist reservation metadata."""
+    data = {
+        "status": "available",
+        "artist_name": None,
+        "artist_email": None,
+        "phone_number": None,
+        "session_notes": None,
+        "package_type": None,
+        "package_name": None,
+        "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
+    }
+
+    if _is_firebase_initialized and _firestore_db:
+        try:
+            _firestore_db.collection("booking_slots").document(slot_id).set(data, merge=True)
+            return True
+        except Exception as err:
+            print(f"Firestore reset slot error: {err}")
+
+    slot = get_slot_by_id(slot_id)
+    if slot:
+        slot["status"] = "available"
+        slot.pop("artist_name", None)
+        slot.pop("artist_email", None)
+        slot.pop("phone_number", None)
+        slot.pop("session_notes", None)
+        slot.pop("package_type", None)
+        slot.pop("package_name", None)
+        slot["updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        return True
+    return False
+
 # ----------------- Subscribers -----------------
 
 def add_subscriber(email: str) -> bool:
