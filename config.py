@@ -16,7 +16,7 @@ if env_file.exists():
                     k, v = line.split("=", 1)
                     k = k.strip()
                     v = v.strip().strip("'").strip('"')
-                    os.environ.setdefault(k, v)
+                    os.environ[k] = v
 
 # Server & Domain Config
 PORT = int(os.getenv("PORT", "8000"))
