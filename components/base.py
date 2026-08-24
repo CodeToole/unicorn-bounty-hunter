@@ -43,7 +43,9 @@ def Layout(title: str, *content, current_path: str = "/", show_nav: bool = True,
         Script(type="module", src="https://cdn.jsdelivr.net/gh/starfederation/datastar@v1.0.0-beta.1/bundles/datastar.js"),
         # UBH Custom Design System
         Link(rel="stylesheet", href="/static/css/theme.css"),
-        Link(rel="icon", href="/static/assets/favicon.ico"),
+        Link(rel="icon", type="image/x-icon", href="/static/assets/favicon.ico"),
+        Link(rel="icon", type="image/png", href="/static/assets/favicon.png"),
+        Link(rel="apple-touch-icon", href="/static/assets/apple-touch-icon.png"),
     ), Body(
         Navbar(current_path=current_path) if show_nav else None,
         Main(

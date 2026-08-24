@@ -112,3 +112,197 @@ def _build_artist_card(artist: dict):
         href=profile_url,
         cls="group relative block no-underline"
     )
+
+def NewsCarousel(posts: list):
+    """
+    Dynamic 'LATEST FROM THE HUNT' ticker/carousel banner for the homepage.
+    Renders recent posts with Publishing Artist Name, Post Title, Short Snippet,
+    and a 'READ ARTICLE' button routing to /roster/{artist_slug}#post-{id}.
+    """
+    if not posts:
+        return Div(cls="hidden")
+
+    # Build slides
+    slides = []
+    dots = []
+    for idx, post in enumerate(posts):
+        post_id = post.get("id", f"post-{idx}")
+        title = post.get("title", "Untitled Transmission")
+        body = post.get("body", "")
+        snippet = (body[:130] + "...") if len(body) > 130 else body
+        artist_slug = post.get("artist_slug", "")
+        artist = get_artist_by_slug(artist_slug)
+        artist_name = artist["name"] if artist else artist_slug.replace("-", " ").title()
+        artist_img = artist.get("image_url", "/static/assets/ubh_logo.jpg") if artist else "/static/assets/ubh_logo.jpg"
+        media_url = post.get("media_url", "")
+        read_url = f"/roster/{artist_slug}#post-{post_id}"
+
+        slide = Div(
+            Div(
+                # Inner Card Container
+                Div(
+                    # Left / Top Info: Artist & Category
+                    Div(
+                        Div(
+                            Img(
+                                src=artist_img,
+                                alt=f"{artist_name} portrait",
+                                cls="w-10 h-10 rounded-full object-cover border border-[#D4AF37]/50 shadow-md"
+                            ),
+                            Div(
+                                Span(artist_name, cls="font-heading font-bold text-sm text-[#D4AF37] tracking-wider uppercase block"),
+                                Span("DISPATCH TRANSMISSION", cls="font-body text-[10px] text-neutral-400 uppercase tracking-widest"),
+                                cls="flex flex-col text-left"
+                            ),
+                            cls="flex items-center gap-3"
+                        ),
+                        # Timestamp / Status badge
+                        Span("FIELD REPORT", cls="font-mono text-[10px] text-black bg-[#D4AF37] font-bold px-2.5 py-0.5 rounded uppercase tracking-wider hidden sm:inline-block"),
+                        cls="flex items-center justify-between border-b border-[#222222] pb-3 mb-4"
+                    ),
+                    # Middle: Title and Snippet
+                    Div(
+                        H3(
+                            title,
+                            cls="font-heading font-black text-lg sm:text-xl md:text-2xl text-white uppercase tracking-tight mb-2 group-hover:text-[#D4AF37] transition-colors line-clamp-2"
+                        ),
+                        P(
+                            snippet,
+                            cls="text-neutral-300 text-xs sm:text-sm leading-relaxed mb-6 font-body line-clamp-3 text-left"
+                        ),
+                        cls="flex-grow"
+                    ),
+                    # Bottom Action: Read Article
+                    Div(
+                        A(
+                            "READ ARTICLE →",
+                            href=read_url,
+                            cls="btn-gold text-xs py-2.5 px-6 tracking-widest inline-flex items-center gap-2 shadow-lg"
+                        ),
+                        cls="flex justify-start items-center pt-2"
+                    ),
+                    cls="p-6 md:p-8 flex flex-col justify-between h-full"
+                ),
+                cls="bg-[#0D0D0D]/95 border border-[#222222] hover:border-[#D4AF37]/70 rounded-2xl transition-all duration-300 shadow-2xl backdrop-blur-md h-full flex flex-col justify-between card-hover-gold"
+            ),
+            cls=f"carousel-slide {'block' if idx == 0 else 'hidden'} w-full transition-opacity duration-500 ease-in-out",
+            id=f"hunt-slide-{idx}"
+        )
+        slides.append(slide)
+
+        dot = Button(
+            cls=f"carousel-dot w-3 h-3 rounded-full transition-all duration-300 cursor-pointer {'bg-[#D4AF37] w-8' if idx == 0 else 'bg-neutral-600 hover:bg-neutral-400'}",
+            onclick=f"setHuntSlide({idx})",
+            aria_label=f"Slide {idx + 1}"
+        )
+        dots.append(dot)
+
+    carousel_script = Script(f"""
+        (function() {{
+            let currentSlide = 0;
+            const totalSlides = {len(posts)};
+            let timer = null;
+
+            window.setHuntSlide = function(index) {{
+                if (index < 0) index = totalSlides - 1;
+                if (index >= totalSlides) index = 0;
+                currentSlide = index;
+
+                for (let i = 0; i < totalSlides; i++) {{
+                    const slide = document.getElementById('hunt-slide-' + i);
+                    if (slide) {{
+                        if (i === currentSlide) {{
+                            slide.classList.remove('hidden');
+                            slide.classList.add('block');
+                        }} else {{
+                            slide.classList.remove('block');
+                            slide.classList.add('hidden');
+                        }}
+                    }}
+                }}
+
+                const dots = document.querySelectorAll('.carousel-dot');
+                dots.forEach((dot, i) => {{
+                    if (i === currentSlide) {{
+                        dot.className = 'carousel-dot w-8 h-3 rounded-full transition-all duration-300 cursor-pointer bg-[#D4AF37]';
+                    }} else {{
+                        dot.className = 'carousel-dot w-3 h-3 rounded-full transition-all duration-300 cursor-pointer bg-neutral-600 hover:bg-neutral-400';
+                    }}
+                }});
+            }};
+
+            window.nextHuntSlide = function() {{
+                setHuntSlide(currentSlide + 1);
+            }};
+
+            window.prevHuntSlide = function() {{
+                setHuntSlide(currentSlide - 1);
+            }};
+
+            function startTimer() {{
+                stopTimer();
+                timer = setInterval(function() {{
+                    window.nextHuntSlide();
+                }}, 6000);
+            }}
+
+            function stopTimer() {{
+                if (timer) clearInterval(timer);
+            }}
+
+            const container = document.getElementById('hunt-carousel-wrapper');
+            if (container) {{
+                container.addEventListener('mouseenter', stopTimer);
+                container.addEventListener('mouseleave', startTimer);
+                container.addEventListener('touchstart', stopTimer, {{ passive: true }});
+            }}
+
+            startTimer();
+        }})();
+    """)
+
+    return Section(
+        Div(
+            # Ticker / Carousel Header
+            Div(
+                Div(
+                    Span("⚡", cls="animate-bounce text-[#D4AF37] text-sm"),
+                    Span("LATEST FROM THE HUNT", cls="font-heading font-black text-xs md:text-sm text-[#D4AF37] tracking-[0.35em] uppercase"),
+                    cls="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-[#141414] border border-[#D4AF37]/40 shadow-lg mb-3"
+                ),
+                H2("NEWS & FIELD DISPATCHES", cls="font-heading text-2xl sm:text-3xl md:text-4xl font-black tracking-tight uppercase text-white"),
+                cls="text-center mb-8"
+            ),
+            # Carousel Frame & Wrapper
+            Div(
+                # Slides Container
+                Div(
+                    *slides,
+                    id="hunt-slides-container",
+                    cls="relative min-h-[260px] sm:min-h-[230px] flex items-center justify-center"
+                ),
+                # Navigation Controls (Prev / Next Arrows + Dots)
+                Div(
+                    Button(
+                        "‹",
+                        onclick="prevHuntSlide()",
+                        cls="w-9 h-9 rounded-full bg-[#141414] border border-[#2A2A2A] hover:border-[#D4AF37] text-[#D4AF37] hover:text-white flex items-center justify-center font-bold text-lg transition-all duration-200 cursor-pointer shadow-md",
+                        aria_label="Previous Transmission"
+                    ),
+                    Div(*dots, cls="flex items-center gap-2"),
+                    Button(
+                        "›",
+                        onclick="nextHuntSlide()",
+                        cls="w-9 h-9 rounded-full bg-[#141414] border border-[#2A2A2A] hover:border-[#D4AF37] text-[#D4AF37] hover:text-white flex items-center justify-center font-bold text-lg transition-all duration-200 cursor-pointer shadow-md",
+                        aria_label="Next Transmission"
+                    ),
+                    cls="flex items-center justify-between mt-6 px-2"
+                ),
+                id="hunt-carousel-wrapper",
+                cls="max-w-4xl mx-auto"
+            ),
+            carousel_script,
+            cls="max-w-7xl mx-auto px-6 py-12 md:py-16"
+        ),
+        cls="w-full relative z-20 bg-gradient-to-b from-[#0A0A0A] via-[#0E0E0E] to-[#0A0A0A] border-t border-b border-[#1A1A1A]"
+    )
