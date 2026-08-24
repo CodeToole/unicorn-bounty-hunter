@@ -1,42 +1,39 @@
-import urllib.request
-import urllib.parse
-import json
+import unittest
+from starlette.testclient import TestClient
+from main import app
 
-base = 'http://127.0.0.1:8000'
-routes = [
-    '/',
-    '/services',
-    '/showcase',
-    '/musical-chairs',
-    '/rap-funxtion',
-    '/music',
-    '/merch',
-    '/booking',
-    '/admin',
-    '/admin?key=[REDACTED_ADMIN_SECRET]',
-    '/health'
-]
+class TestLiveRoutesInProcess(unittest.TestCase):
 
-print("=== VERIFYING ALL LIVE ROUTES ===")
-for r in routes:
-    res = urllib.request.urlopen(base + r)
-    body = res.read()
-    print(f"[OK] GET {r:30} -> Status: {res.status} | Size: {len(body):6} bytes")
+    def setUp(self):
+        self.client = TestClient(app)
 
-print("\n=== VERIFYING DATASTAR SSE STREAMING ===")
-sse_res = urllib.request.urlopen(base + '/sse/available-slots?booking_date=2026-08-25')
-sse_data = sse_res.read().decode('utf-8')
-has_event = "datastar-merge-fragments" in sse_data
-has_slot_container = "slot-container" in sse_data
-print(f"[OK] GET /sse/available-slots -> Status: {sse_res.status} | Datastar Event: {has_event} | Has #slot-container: {has_slot_container}")
+    def test_live_routes(self):
+        routes = [
+            '/',
+            '/services',
+            '/showcase',
+            '/musical-chairs',
+            '/rap-funxtion',
+            '/music',
+            '/merch',
+            '/booking',
+            '/admin',
+            '/health'
+        ]
+        for r in routes:
+            res = self.client.get(r)
+            self.assertEqual(res.status_code, 200, f"Route {r} failed with status {res.status_code}")
 
-print("\n=== VERIFYING EMAIL SUBSCRIPTION API ===")
-req = urllib.request.Request(
-    base + '/subscribe',
-    data=urllib.parse.urlencode({'email': 'livecheck@ubh.com'}).encode('utf-8')
-)
-sub_res = urllib.request.urlopen(req)
-sub_body = sub_res.read().decode('utf-8')
-print(f"[OK] POST /subscribe -> Status: {sub_res.status} | Body: {sub_body}")
+    def test_sse_streaming(self):
+        sse_res = self.client.get('/sse/available-slots?booking_date=2026-08-25')
+        self.assertEqual(sse_res.status_code, 200)
+        self.assertIn("datastar-merge-fragments", sse_res.text)
+        self.assertIn("slot-container", sse_res.text)
 
-print("\n=== ALL LIVE VERIFICATION CHECKS PASSED ===")
+    def test_subscribe_api(self):
+        sub_res = self.client.post('/subscribe', data={'email': 'livecheck@ubh.com'})
+        self.assertEqual(sub_res.status_code, 200)
+        self.assertTrue(sub_res.json().get('success'))
+
+if __name__ == "__main__":
+    unittest.main()

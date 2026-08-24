@@ -1,4 +1,5 @@
 import os
+import secrets
 from pathlib import Path
 
 # Load .env file automatically if present
@@ -18,6 +19,8 @@ if env_file.exists():
                     v = v.strip().strip("'").strip('"')
                     os.environ[k] = v
 
+ENVIRONMENT = os.getenv("ENVIRONMENT", os.getenv("ENV", "development")).lower()
+
 # Server & Domain Config
 PORT = int(os.getenv("PORT", "8000"))
 DOMAIN_URL = os.getenv("DOMAIN_URL", "http://localhost:8000").rstrip("/")
@@ -28,7 +31,13 @@ STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "whsec_mock_key_ubh_2
 STRIPE_PUBLIC_KEY = os.getenv("STRIPE_PUBLIC_KEY", "pk_test_mock_key_ubh_2026")
 
 # Admin Security
-ADMIN_SECRET_KEY = os.getenv("ADMIN_SECRET_KEY", os.getenv("ADMIN_KEY", "[REDACTED_ADMIN_SECRET]"))
+ADMIN_SECRET_KEY = os.getenv("ADMIN_SECRET_KEY", os.getenv("ADMIN_KEY", ""))
+if not ADMIN_SECRET_KEY:
+    if ENVIRONMENT == "production":
+        raise RuntimeError("ADMIN_SECRET_KEY environment variable must be set in production mode.")
+    else:
+        ADMIN_SECRET_KEY = "[REDACTED_ADMIN_SECRET]"
+
 ADMIN_KEY = ADMIN_SECRET_KEY
 
 # Firebase Configuration

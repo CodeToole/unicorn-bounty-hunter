@@ -109,7 +109,6 @@ class TestUBHPlatform(unittest.TestCase):
             ("/booking", 200),
             ("/health", 200),
             ("/admin", 200),
-            ("/admin?key=[REDACTED_ADMIN_SECRET]", 200),
         ]
         for path, expected_status in endpoints:
             response = self.client.get(path)
@@ -126,9 +125,12 @@ class TestUBHPlatform(unittest.TestCase):
         print("[OK] Datastar SSE streaming endpoint test passed.")
 
     def test_artist_post_create_and_delete(self):
+        # Authenticate session
+        login_res = self.client.post("/admin/login", data={"key": "[REDACTED_ADMIN_SECRET]"}, follow_redirects=False)
+        self.assertEqual(login_res.status_code, 303)
+
         # 1. Create a post
         res_add = self.client.post("/admin/posts/add", data={
-            "key": "[REDACTED_ADMIN_SECRET]",
             "artist_slug": "ali-kazem",
             "title": "Temporary Test Transmission",
             "body": "This is a temporary test post to verify creation and deletion flow.",
@@ -137,7 +139,7 @@ class TestUBHPlatform(unittest.TestCase):
         self.assertEqual(res_add.status_code, 303)
 
         # Verify post appears in admin tab
-        res_admin = self.client.get("/admin?key=[REDACTED_ADMIN_SECRET]&tab=posts")
+        res_admin = self.client.get("/admin?tab=posts")
         self.assertIn("Temporary Test Transmission", res_admin.text)
         self.assertIn("🗑️ Delete Post", res_admin.text)
 
@@ -150,7 +152,6 @@ class TestUBHPlatform(unittest.TestCase):
 
         # 3. Delete the post via POST /admin/posts/delete
         res_del = self.client.post("/admin/posts/delete", data={
-            "key": "[REDACTED_ADMIN_SECRET]",
             "post_id": post_id
         }, follow_redirects=False)
         self.assertEqual(res_del.status_code, 303)
