@@ -38,6 +38,7 @@ admin_app = FastHTML()
 rt = admin_app.route
 
 SESSION_COOKIE_NAME = "ubh_admin_session"
+FIREBASE_SESSION_COOKIE_NAME = "__session"
 
 # ----------------- Auth & Session Cookie Helpers -----------------
 
@@ -55,8 +56,9 @@ def get_current_user_session(req: Request) -> Optional[Dict[str, Any]]:
     """
     Retrieves user session context from HTTP-only cookies, Authorization header, or query params.
     Returns dict: {'role': 'super_admin' | 'artist_admin', 'artist_slug': str, 'email': str} or None.
+    Supports Firebase Hosting __session cookie pass-through as well as ubh_admin_session.
     """
-    cookie_token = req.cookies.get(SESSION_COOKIE_NAME, "")
+    cookie_token = req.cookies.get(FIREBASE_SESSION_COOKIE_NAME, "") or req.cookies.get(SESSION_COOKIE_NAME, "")
     if cookie_token:
         # Check Super Admin Master Token or Secret Key
         if ADMIN_SECRET_KEY and (hmac.compare_digest(cookie_token, ADMIN_SECRET_KEY) or hmac.compare_digest(cookie_token, get_session_token())):
@@ -190,15 +192,16 @@ async def post_admin_login(req: Request):
     # 1. Master Key Auth (Super Admin)
     if ADMIN_SECRET_KEY and key and hmac.compare_digest(key, ADMIN_SECRET_KEY):
         resp = RedirectResponse("/admin?msg=Authenticated+as+Super+Admin", status_code=303)
-        resp.set_cookie(
-            key=SESSION_COOKIE_NAME,
-            value=ADMIN_SECRET_KEY,
-            httponly=True,
-            samesite="lax",
-            secure=IS_PRODUCTION,
-            max_age=86400,
-            path="/"
-        )
+        for cname in [FIREBASE_SESSION_COOKIE_NAME, SESSION_COOKIE_NAME]:
+            resp.set_cookie(
+                key=cname,
+                value=ADMIN_SECRET_KEY,
+                httponly=True,
+                samesite="lax",
+                secure=IS_PRODUCTION,
+                max_age=86400,
+                path="/"
+            )
         return resp
 
     # 2. Multi-Tenant Email & Password Auth (Artist Admin or Super Admin)
@@ -210,24 +213,26 @@ async def post_admin_login(req: Request):
             cookie_val = ADMIN_SECRET_KEY if role == "super_admin" else f"artist_admin:{artist_slug}:{email}"
             target_tab = "slots" if role == "super_admin" else "posts"
             resp = RedirectResponse(f"/admin?tab={target_tab}&msg=Authenticated+successfully", status_code=303)
-            resp.set_cookie(
-                key=SESSION_COOKIE_NAME,
-                value=cookie_val,
-                httponly=True,
-                samesite="lax",
-                secure=IS_PRODUCTION,
-                max_age=86400,
-                path="/"
-            )
+            for cname in [FIREBASE_SESSION_COOKIE_NAME, SESSION_COOKIE_NAME]:
+                resp.set_cookie(
+                    key=cname,
+                    value=cookie_val,
+                    httponly=True,
+                    samesite="lax",
+                    secure=IS_PRODUCTION,
+                    max_age=86400,
+                    path="/"
+                )
             return resp
 
     return RedirectResponse("/admin?error=Invalid+credentials+or+admin+security+key", status_code=303)
 
 @rt("/admin/logout")
 def get_admin_logout():
-    """Clears admin session cookie and redirects to login portal."""
+    """Clears admin session cookies and redirects to login portal."""
     resp = RedirectResponse("/admin?msg=Logged+out+successfully", status_code=303)
-    resp.delete_cookie(key=SESSION_COOKIE_NAME, path="/")
+    for cname in [FIREBASE_SESSION_COOKIE_NAME, SESSION_COOKIE_NAME]:
+        resp.delete_cookie(key=cname, path="/")
     return resp
 
 # ----------------- Admin CMS Dashboard -----------------
