@@ -13,6 +13,7 @@ from services.firebase_service import (
     reset_slot_booking,
     get_events,
     add_event,
+    delete_event,
     get_showcases,
     add_showcase,
     get_subscribers,
@@ -253,10 +254,24 @@ def get_admin(key: str = "", date: str = "", tab: str = "slots", msg: str = ""):
         Div(
             *[
                 Div(
-                    H4(ev["title"], cls="font-heading font-bold text-base text-white mb-1"),
-                    Span(f"Date: {ev.get('date')} • Status: {ev.get('status')}", cls="text-xs text-[#D4AF37] block mb-2"),
-                    P(ev.get("description", ""), cls="text-neutral-400 text-xs mb-3"),
-                    Img(src=ev.get("flyer_url"), cls="w-36 rounded-lg border border-[#333333] shadow-md") if ev.get("flyer_url") else None,
+                    Div(
+                        Div(
+                            H4(ev["title"], cls="font-heading font-bold text-base text-white mb-1"),
+                            Span(f"Date: {ev.get('date')} • Status: {ev.get('status')}", cls="text-xs text-[#D4AF37] block mb-2"),
+                            P(ev.get("description", ""), cls="text-neutral-400 text-xs mb-3 leading-relaxed"),
+                            Img(src=ev.get("flyer_url"), cls="w-36 rounded-lg border border-[#333333] shadow-md mb-2") if ev.get("flyer_url") else None,
+                            cls="flex-grow"
+                        ),
+                        Form(
+                            Input(type="hidden", name="key", value=key),
+                            Input(type="hidden", name="event_id", value=ev["id"]),
+                            Button("🗑️ Delete Event", type="submit", cls="text-[10px] bg-red-950 text-red-300 border border-red-800 hover:bg-red-800 hover:text-white px-3 py-1.5 rounded cursor-pointer font-bold transition-all"),
+                            action="/admin/events/delete",
+                            method="POST",
+                            cls="mt-2 md:mt-0"
+                        ),
+                        cls="flex flex-col md:flex-row justify-between items-start md:items-center"
+                    ),
                     cls="p-4 bg-[#141414] border border-[#262626] rounded-xl"
                 )
                 for ev in events
@@ -459,6 +474,15 @@ async def post_admin_event_add(req):
         description=description
     )
     return RedirectResponse(f"/admin?key={key}&tab=events&msg=Event+added+successfully", status_code=303)
+
+@rt("/admin/events/delete")
+def post_admin_event_delete(key: str = "", event_id: str = ""):
+    """Delete an event from the roster and update admin view."""
+    if key != ADMIN_KEY:
+        return RedirectResponse("/admin", status_code=303)
+
+    delete_event(event_id)
+    return RedirectResponse(f"/admin?key={key}&tab=events&msg=Event+deleted+successfully", status_code=303)
 
 @rt("/admin/posts/add")
 async def post_admin_artist_post(req):

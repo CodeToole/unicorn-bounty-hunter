@@ -48,13 +48,14 @@ _local_subscribers: List[Dict[str, Any]] = [
 ]
 _local_events: List[Dict[str, Any]] = [
     {
-        "id": "rf16",
-        "title": "Rap Funxtion 16",
-        "date": "Rescheduling in Progress",
-        "status": "Rescheduling",
+        "id": "rf-coming-soon",
+        "title": "Rap Funxtion",
+        "date": "Coming Soon",
+        "status": "Coming Soon",
         "flyer_url": "/static/assets/rf16_flyer_new.jpg",
         "ticket_url": "#",
-        "description": "The July 19th showcase has been postponed. New dates, venue details, and line-up configurations are currently being finalized."
+        "active": True,
+        "description": "New dates, venue details, and lineup configurations are currently being finalized. Stay tuned for official announcements."
     }
 ]
 _local_showcases: List[Dict[str, Any]] = [
@@ -278,6 +279,7 @@ def add_event(title: str, date: str, status: str, flyer_url: str, ticket_url: st
         "status": status,
         "flyer_url": flyer_url or "/static/assets/rf16_flyer_new.jpg",
         "ticket_url": ticket_url or "#",
+        "active": True,
         "description": description,
         "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
     }
@@ -290,6 +292,20 @@ def add_event(title: str, date: str, status: str, flyer_url: str, ticket_url: st
 
     _local_events.insert(0, data)
     return data
+
+def delete_event(event_id: str) -> bool:
+    """Delete an event by ID from Firestore and local store."""
+    global _local_events
+    if _is_firebase_initialized and _firestore_db:
+        try:
+            _firestore_db.collection("events").document(event_id).delete()
+            return True
+        except Exception as err:
+            print(f"Firestore delete event error: {err}")
+
+    original_len = len(_local_events)
+    _local_events = [e for e in _local_events if e.get("id") != event_id]
+    return len(_local_events) < original_len
 
 # ----------------- YouTube Showcases -----------------
 
