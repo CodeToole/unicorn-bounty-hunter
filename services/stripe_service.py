@@ -1,9 +1,17 @@
 import stripe
 from typing import Dict, Any, Optional
-from config import STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, DOMAIN_URL
+from config import (
+    STRIPE_SECRET_KEY,
+    STRIPE_WEBHOOK_SECRET,
+    DOMAIN_URL,
+    IS_PRODUCTION,
+    is_live_stripe_enabled,
+    is_mock_payment_allowed
+)
 from services.firebase_service import get_slot_by_id, update_slot_status
 
-stripe.api_key = STRIPE_SECRET_KEY
+if STRIPE_SECRET_KEY:
+    stripe.api_key = STRIPE_SECRET_KEY
 
 def create_checkout_session(
     slot_id: str,
@@ -36,11 +44,10 @@ def create_checkout_session(
         package_name = f"UBH Studio Recording Session — {time_label}"
         package_desc = f"Date: {date_str} | Time: {time_label} | Artist: {artist_name}"
 
-    # Check if we have a real Stripe API key (not mock)
-    active_key = STRIPE_SECRET_KEY
-    if active_key and not active_key.startswith("sk_test_mock") and not active_key.startswith("placeholder"):
+    # Check if we have a real / live Stripe API key
+    if is_live_stripe_enabled():
         try:
-            stripe.api_key = active_key
+            stripe.api_key = STRIPE_SECRET_KEY
             session = stripe.checkout.Session.create(
                 payment_method_types=["card"],
                 customer_email=artist_email,
@@ -72,7 +79,12 @@ def create_checkout_session(
             )
             return {"url": session.url, "id": session.id, "is_mock": False, "price": price_usd, "package_name": package_name}
         except Exception as e:
-            print(f"Stripe API error: {e}. Generating simulated checkout link for local testing.")
+            print(f"Stripe API error: {e}")
+            return {"error": f"Stripe Checkout error: {str(e)}"}
+
+    # If mock payments are strictly prohibited (e.g. production), reject
+    if not is_mock_payment_allowed():
+        return {"error": "Mock checkout is disabled in this environment."}
 
     # Simulated Mock Checkout for local testing
     mock_session_id = f"cs_test_mock_{slot_id}_{int(price_usd)}"
@@ -100,16 +112,32 @@ def process_successful_payment(
     )
 
 def verify_webhook_event(payload: bytes, sig_header: str) -> Optional[Dict[str, Any]]:
-    if STRIPE_WEBHOOK_SECRET and not STRIPE_WEBHOOK_SECRET.startswith("whsec_mock") and not STRIPE_WEBHOOK_SECRET.startswith("placeholder"):
+    """
+    Verifies incoming Stripe webhook events.
+    In production mode, strictly enforces HMAC signature verification with construct_event.
+    """
+    if IS_PRODUCTION:
+        if not STRIPE_WEBHOOK_SECRET or not sig_header:
+            return None
         try:
-            event = stripe.Webhook.construct_event(
+            return stripe.Webhook.construct_event(
                 payload, sig_header, STRIPE_WEBHOOK_SECRET
             )
-            return event
+        except Exception as e:
+            print(f"Production webhook signature verification error: {e}")
+            return None
+
+    # In development mode, verify signature if secret provided, or fallback to json parse in test simulator
+    if STRIPE_WEBHOOK_SECRET and not STRIPE_WEBHOOK_SECRET.startswith("whsec_mock") and not STRIPE_WEBHOOK_SECRET.startswith("placeholder"):
+        try:
+            return stripe.Webhook.construct_event(
+                payload, sig_header, STRIPE_WEBHOOK_SECRET
+            )
         except Exception as e:
             print(f"Webhook verification error: {e}")
             return None
-    # In mock / dev mode, attempt parsing json
+
+    # Fallback for dev / mock testing
     try:
         import json
         return json.loads(payload.decode("utf-8"))

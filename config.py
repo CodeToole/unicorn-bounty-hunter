@@ -18,17 +18,41 @@ if env_file.exists():
                     v = v.strip().strip("'").strip('"')
                     os.environ[k] = v
 
+# Environment & Mode
+ENVIRONMENT = os.getenv("ENVIRONMENT", os.getenv("ENV", "development")).lower()
+IS_PRODUCTION = (ENVIRONMENT == "production")
+
 # Server & Domain Config
 PORT = int(os.getenv("PORT", "8000"))
 DOMAIN_URL = os.getenv("DOMAIN_URL", "http://localhost:8000").rstrip("/")
 
 # Stripe Configuration
-STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "sk_test_mock_key_ubh_2026")
-STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "whsec_mock_key_ubh_2026")
-STRIPE_PUBLIC_KEY = os.getenv("STRIPE_PUBLIC_KEY", "pk_test_mock_key_ubh_2026")
+if IS_PRODUCTION:
+    STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")
+    STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+    STRIPE_PUBLIC_KEY = os.getenv("STRIPE_PUBLIC_KEY", "")
+else:
+    STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "sk_test_mock_key_ubh_2026")
+    STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "whsec_mock_key_ubh_2026")
+    STRIPE_PUBLIC_KEY = os.getenv("STRIPE_PUBLIC_KEY", "pk_test_mock_key_ubh_2026")
+
+def is_live_stripe_enabled() -> bool:
+    """Returns True if a real / live Stripe secret key is configured."""
+    key = STRIPE_SECRET_KEY.strip() if STRIPE_SECRET_KEY else ""
+    return bool(key and not key.startswith("sk_test_mock") and not key.startswith("placeholder"))
+
+def is_mock_payment_allowed() -> bool:
+    """Mock checkout is strictly disabled in production mode or when live Stripe keys exist."""
+    return not IS_PRODUCTION and not is_live_stripe_enabled()
 
 # Admin Security
-ADMIN_SECRET_KEY = os.getenv("ADMIN_SECRET_KEY", os.getenv("ADMIN_KEY", "[REDACTED_ADMIN_SECRET]"))
+if IS_PRODUCTION:
+    # In production, require explicit secret key from environment with no fallback
+    ADMIN_SECRET_KEY = os.getenv("ADMIN_SECRET_KEY") or os.getenv("ADMIN_KEY") or ""
+else:
+    # In dev/test mode, provide default local development key
+    ADMIN_SECRET_KEY = os.getenv("ADMIN_SECRET_KEY") or os.getenv("ADMIN_KEY") or "[REDACTED_ADMIN_SECRET]"
+
 ADMIN_KEY = ADMIN_SECRET_KEY
 
 # Firebase Configuration

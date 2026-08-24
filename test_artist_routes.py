@@ -1,22 +1,13 @@
-import urllib.request
-import urllib.parse
-import json
 import sys
+from starlette.testclient import TestClient
+from main import app
+from routes.admin import get_session_token
 
-BASE = "http://localhost:8000"
-
-def test_route(path):
-    try:
-        req = urllib.request.Request(BASE + path, headers={"User-Agent": "UBH-Test"})
-        resp = urllib.request.urlopen(req, timeout=5)
-        return resp.status
-    except urllib.error.HTTPError as e:
-        return e.code
-    except Exception as e:
-        return str(e)
+client = TestClient(app)
+client.cookies.set("ubh_admin_session", get_session_token())
 
 print("=" * 60)
-print("UBH ARTIST ROUTES INTEGRATION TEST")
+print("UBH ARTIST ROUTES INTEGRATION TEST (IN-MEMORY)")
 print("=" * 60)
 
 routes = [
@@ -27,12 +18,13 @@ routes = [
     "/roster/unkn0wn",
     "/roster/yung-illie",
     "/roster/nonexistent-artist",
-    "/admin?key=[REDACTED_ADMIN_SECRET]&tab=posts",
+    "/admin?tab=posts",
 ]
 
 fails = 0
 for path in routes:
-    status = test_route(path)
+    resp = client.get(path)
+    status = resp.status_code
     tag = "OK" if status == 200 else "FAIL"
     if status != 200:
         fails += 1
@@ -41,19 +33,16 @@ for path in routes:
 print("=" * 60)
 
 # Publish a test post for Ali Kazem to test full card rendering & toolbar
-post_data = urllib.parse.urlencode({
-    "key": "[REDACTED_ADMIN_SECRET]",
+client.post("/admin/posts/add", data={
     "artist_slug": "ali-kazem",
     "title": "Studio Field Report",
     "body": "Tracking sessions live in the acoustic room with new HS8 monitoring setup.",
     "media_url": ""
-}).encode("utf-8")
-req_post = urllib.request.Request(BASE + "/admin/posts/add", data=post_data, method="POST")
-urllib.request.urlopen(req_post, timeout=5)
+}, follow_redirects=False)
 
 # Content checks on Ali Kazem profile
-resp = urllib.request.urlopen(BASE + "/roster/ali-kazem", timeout=5)
-html = resp.read().decode("utf-8", errors="replace")
+resp = client.get("/roster/ali-kazem")
+html = resp.text
 checks = [
     ("Ali Kazem name in page", "ALI KAZEM" in html),
     ("Instagram handle link", "shadowurameshi" in html),
@@ -70,8 +59,8 @@ for label, passed in checks:
     print("  %s  %s" % (tag, label))
 
 # Admin Creator Portal checks
-resp2 = urllib.request.urlopen(BASE + "/admin?key=[REDACTED_ADMIN_SECRET]&tab=posts", timeout=5)
-html2 = resp2.read().decode("utf-8", errors="replace")
+resp2 = client.get("/admin?tab=posts")
+html2 = resp2.text
 admin_checks = [
     ("Creator Portal heading", "ARTIST CREATOR PORTAL" in html2),
     ("Artist slug selector", "artist_slug" in html2),

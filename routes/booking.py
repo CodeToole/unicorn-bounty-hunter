@@ -7,6 +7,7 @@ from components.base import Layout
 from components.calendar import BookingCalendar
 from services.firebase_service import get_slots_for_date, get_slot_by_id, update_slot_status
 from services.stripe_service import create_checkout_session, process_successful_payment, verify_webhook_event
+from config import is_mock_payment_allowed
 
 booking_app = FastHTML()
 rt = booking_app.route
@@ -97,6 +98,9 @@ def get_mock_checkout(
     package: str = "studio",
     package_name: str = ""
 ):
+    if not is_mock_payment_allowed():
+        return Response("Mock payment simulation is disabled in this environment.", status_code=403)
+
     slot = get_slot_by_id(slot_id) or {}
     display_package_name = package_name or (
         "Shadow Talk Podcast (Standard 1-Hr)" if package == "podcast_standard"
@@ -167,6 +171,9 @@ def get_mock_checkout(
 
 @rt("/booking/mock-complete")
 async def post_mock_complete(req):
+    if not is_mock_payment_allowed():
+        return Response("Mock payment completion is disabled in this environment.", status_code=403)
+
     try:
         form = await req.form()
         slot_id = form.get("slot_id", "")

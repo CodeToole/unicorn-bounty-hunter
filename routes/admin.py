@@ -1,14 +1,18 @@
 from fasthtml.common import *
-from starlette.responses import RedirectResponse, JSONResponse
+from starlette.responses import RedirectResponse, JSONResponse, Response
+from starlette.requests import Request
 import re
 import datetime
+import hashlib
+import hmac
 from typing import Optional
 
 from components.base import Layout
 from components.roster import ROSTER_ARTISTS
-from config import ADMIN_SECRET_KEY, ADMIN_KEY
+from config import ADMIN_SECRET_KEY, ADMIN_KEY, IS_PRODUCTION
 from services.firebase_service import (
     get_all_slots_for_date_admin,
+    get_slot_by_id,
     update_slot_status,
     reset_slot_booking,
     get_events,
@@ -25,6 +29,93 @@ from services.firebase_service import (
 admin_app = FastHTML()
 rt = admin_app.route
 
+SESSION_COOKIE_NAME = "ubh_admin_session"
+
+# ----------------- Auth & Session Cookie Helpers -----------------
+
+def get_session_token() -> str:
+    """Derives a secure session token HMAC from ADMIN_SECRET_KEY."""
+    if not ADMIN_SECRET_KEY:
+        return ""
+    return hmac.new(
+        ADMIN_SECRET_KEY.encode("utf-8"),
+        b"ubh_admin_session_v1",
+        hashlib.sha256
+    ).hexdigest()
+
+def is_admin_authenticated(req: Request) -> bool:
+    """
+    Enforces strict pre-query authentication check.
+    Validates HTTP-only session cookie or Authorization header against ADMIN_SECRET_KEY.
+    """
+    if not ADMIN_SECRET_KEY:
+        return False
+
+    expected_token = get_session_token()
+
+    # 1. Check HTTP-only session cookie
+    cookie_token = req.cookies.get(SESSION_COOKIE_NAME, "")
+    if cookie_token and expected_token and hmac.compare_digest(cookie_token, expected_token):
+        return True
+
+    # 2. Check Authorization Bearer header
+    auth_header = req.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        bearer_key = auth_header[7:].strip()
+        if hmac.compare_digest(bearer_key, ADMIN_SECRET_KEY):
+            return True
+
+    # 3. Parameter check for backwards compatibility
+    query_key = req.query_params.get("key", "").strip()
+    if query_key and hmac.compare_digest(query_key, ADMIN_SECRET_KEY):
+        return True
+
+    return False
+
+# ----------------- Input Sanitization & Media Protocol Checks -----------------
+
+def sanitize_media_url(url: str, allow_relative: bool = True, allow_hash: bool = False) -> str:
+    """
+    Sanitizes user-supplied media URLs to strictly require http://, https://,
+    or relative /static/ paths. Explicitly rejects javascript: or malformed URLs.
+    """
+    if not url:
+        return ""
+    raw = str(url).strip()
+    if not raw:
+        return ""
+
+    if allow_hash and raw == "#":
+        return "#"
+
+    # Reject malicious schemes & control characters
+    lower = raw.lower()
+    if lower.startswith(("javascript:", "data:", "vbscript:")) or any(ord(c) < 32 for c in raw):
+        return ""
+
+    # Verify allowed absolute protocols
+    if raw.startswith("https://") or raw.startswith("http://"):
+        if re.match(r'^https?://[^\s<>"]+$', raw):
+            return raw
+        return ""
+
+    # Verify relative static paths
+    if allow_relative and (raw.startswith("/static/") or raw.startswith("/")):
+        if ".." not in raw and re.match(r'^/[^\s<>"]+$', raw):
+            return raw
+        return ""
+
+    return ""
+
+def sanitize_identifier(ident: str, max_length: int = 128) -> str:
+    """Sanitizes IDs (slot_id, event_id, post_id) to strict alphanumeric, hyphen, underscore."""
+    if not ident:
+        return ""
+    raw = str(ident).strip()
+    if re.match(r'^[a-zA-Z0-9_-]+$', raw) and len(raw) <= max_length:
+        return raw
+    return ""
+
 # ----------------- YouTube ID Regex Extractor -----------------
 YOUTUBE_REGEX = re.compile(
     r'(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?|shorts)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})',
@@ -34,44 +125,84 @@ PLAYLIST_REGEX = re.compile(r'[?&]list=([a-zA-Z0-9_-]+)', re.IGNORECASE)
 
 def extract_youtube_id(url_or_id: str) -> tuple[str, bool]:
     """
-    Extracts 11-character YouTube video ID or playlist ID from pasted URL.
-    Returns (extracted_id, is_playlist).
+    Extracts strictly validated 11-character YouTube video ID or playlist ID from pasted URL.
+    Returns (extracted_id, is_playlist). If invalid, returns ("", False).
     """
-    raw = url_or_id.strip()
+    raw = str(url_or_id).strip()
     if not raw:
+        return "", False
+
+    # Reject javascript or malformed
+    if raw.lower().startswith("javascript:"):
         return "", False
 
     # Check playlist
     if "list=" in raw:
         pl_match = PLAYLIST_REGEX.search(raw)
         if pl_match:
-            return f"videoseries?list={pl_match.group(1)}", True
+            playlist_id = pl_match.group(1)
+            if re.match(r'^[a-zA-Z0-9_-]+$', playlist_id):
+                return f"videoseries?list={playlist_id}", True
 
     # Check 11-char match via URL regex
     match = YOUTUBE_REGEX.search(raw)
     if match:
-        return match.group(1), False
+        yt_id = match.group(1)
+        if len(yt_id) == 11 and re.match(r'^[a-zA-Z0-9_-]{11}$', yt_id):
+            return yt_id, False
 
     # If raw string is already an 11-char ID
     if len(raw) == 11 and re.match(r'^[a-zA-Z0-9_-]{11}$', raw):
         return raw, False
 
-    return raw, False
+    return "", False
 
-# ----------------- Admin Routes -----------------
+# ----------------- Authentication Routes -----------------
+
+@rt("/admin/login")
+async def post_admin_login(req: Request):
+    """Handles admin authentication and issues an HTTP-only session cookie."""
+    form = await req.form()
+    key = str(form.get("key", "")).strip()
+
+    if ADMIN_SECRET_KEY and key and hmac.compare_digest(key, ADMIN_SECRET_KEY):
+        resp = RedirectResponse("/admin", status_code=303)
+        token = get_session_token()
+        resp.set_cookie(
+            key=SESSION_COOKIE_NAME,
+            value=token,
+            httponly=True,
+            samesite="lax",
+            secure=IS_PRODUCTION,
+            max_age=86400,
+            path="/"
+        )
+        return resp
+    return RedirectResponse("/admin?error=Invalid+admin+security+key", status_code=303)
+
+@rt("/admin/logout")
+def get_admin_logout():
+    """Clears admin session cookie and redirects to login portal."""
+    resp = RedirectResponse("/admin", status_code=303)
+    resp.delete_cookie(key=SESSION_COOKIE_NAME, path="/")
+    return resp
+
+# ----------------- Admin CMS Dashboard -----------------
 
 @rt("/admin")
-def get_admin(key: str = "", date: str = "", tab: str = "slots", msg: str = ""):
-    # Check simple auth
-    is_authenticated = (key == ADMIN_KEY)
-    
-    if not is_authenticated:
-        # Render Login Form
+def get_admin(req: Request, date: str = "", tab: str = "slots", msg: str = "", error: str = ""):
+    # Strict pre-query authentication check
+    if not is_admin_authenticated(req):
+        # Render Login Form WITHOUT querying Firestore collections
         login_view = Div(
             Div(
                 Span("🔒 ACCESS RESTRICTED", cls="text-xs font-mono text-[#D4AF37] tracking-[0.3em] block mb-2 font-bold"),
                 H2("UBH CMS PORTAL", cls="font-heading text-3xl font-black text-white uppercase mb-4"),
                 P("Enter the master administrative key to access the scheduling console and content engine.", cls="text-neutral-400 text-xs md:text-sm mb-6"),
+                Div(
+                    P(f"⚠️ {error}", cls="text-rose-400 font-bold text-xs text-center"),
+                    cls="mb-4 p-3 bg-rose-950/40 border border-rose-800/60 rounded-xl"
+                ) if error else None,
                 Form(
                     Input(
                         type="password",
@@ -85,8 +216,8 @@ def get_admin(key: str = "", date: str = "", tab: str = "slots", msg: str = ""):
                         type="submit",
                         cls="btn-gold w-full text-xs py-3 font-heading font-black tracking-widest cursor-pointer"
                     ),
-                    action="/admin",
-                    method="GET"
+                    action="/admin/login",
+                    method="POST"
                 ),
                 cls="bg-[#0D0D0D] border border-[#1F1F1F] rounded-2xl p-8 md:p-10 shadow-2xl max-w-md mx-auto text-center"
             ),
@@ -94,7 +225,7 @@ def get_admin(key: str = "", date: str = "", tab: str = "slots", msg: str = ""):
         )
         return Layout("Admin Login", login_view, show_nav=True, show_footer=True, show_capture=False)
 
-    # If authenticated, load CMS data
+    # If authenticated, load CMS data from persistence store
     if not date:
         date = datetime.date.today().isoformat()
 
@@ -104,13 +235,13 @@ def get_admin(key: str = "", date: str = "", tab: str = "slots", msg: str = ""):
     subscribers = get_subscribers()
     all_posts = get_all_artist_posts()
 
-    # Nav Tabs
+    # Nav Tabs using clean session-authenticated URLs
     tabs_header = Div(
-        A(f"📅 Studio Slots ({date})", href=f"/admin?key={key}&tab=slots&date={date}", cls=f"px-4 py-2.5 rounded-lg text-xs font-heading font-bold uppercase transition-all { 'bg-[#D4AF37] text-black' if tab == 'slots' else 'bg-[#141414] text-neutral-400 hover:text-white' }"),
-        A(f"🎥 YouTube Showcases ({len(showcases)})", href=f"/admin?key={key}&tab=showcases", cls=f"px-4 py-2.5 rounded-lg text-xs font-heading font-bold uppercase transition-all { 'bg-[#D4AF37] text-black' if tab == 'showcases' else 'bg-[#141414] text-neutral-400 hover:text-white' }"),
-        A(f"🎤 Rap Funxtion Events ({len(events)})", href=f"/admin?key={key}&tab=events", cls=f"px-4 py-2.5 rounded-lg text-xs font-heading font-bold uppercase transition-all { 'bg-[#D4AF37] text-black' if tab == 'events' else 'bg-[#141414] text-neutral-400 hover:text-white' }"),
-        A(f"✏️ Artist Posts ({len(all_posts)})", href=f"/admin?key={key}&tab=posts", cls=f"px-4 py-2.5 rounded-lg text-xs font-heading font-bold uppercase transition-all { 'bg-[#D4AF37] text-black' if tab == 'posts' else 'bg-[#141414] text-neutral-400 hover:text-white' }"),
-        A(f"✉️ Subscribers ({len(subscribers)})", href=f"/admin?key={key}&tab=subscribers", cls=f"px-4 py-2.5 rounded-lg text-xs font-heading font-bold uppercase transition-all { 'bg-[#D4AF37] text-black' if tab == 'subscribers' else 'bg-[#141414] text-neutral-400 hover:text-white' }"),
+        A(f"📅 Studio Slots ({date})", href=f"/admin?tab=slots&date={date}", cls=f"px-4 py-2.5 rounded-lg text-xs font-heading font-bold uppercase transition-all { 'bg-[#D4AF37] text-black' if tab == 'slots' else 'bg-[#141414] text-neutral-400 hover:text-white' }"),
+        A(f"🎥 YouTube Showcases ({len(showcases)})", href="/admin?tab=showcases", cls=f"px-4 py-2.5 rounded-lg text-xs font-heading font-bold uppercase transition-all { 'bg-[#D4AF37] text-black' if tab == 'showcases' else 'bg-[#141414] text-neutral-400 hover:text-white' }"),
+        A(f"🎤 Rap Funxtion Events ({len(events)})", href="/admin?tab=events", cls=f"px-4 py-2.5 rounded-lg text-xs font-heading font-bold uppercase transition-all { 'bg-[#D4AF37] text-black' if tab == 'events' else 'bg-[#141414] text-neutral-400 hover:text-white' }"),
+        A(f"✏️ Artist Posts ({len(all_posts)})", href="/admin?tab=posts", cls=f"px-4 py-2.5 rounded-lg text-xs font-heading font-bold uppercase transition-all { 'bg-[#D4AF37] text-black' if tab == 'posts' else 'bg-[#141414] text-neutral-400 hover:text-white' }"),
+        A(f"✉️ Subscribers ({len(subscribers)})", href="/admin?tab=subscribers", cls=f"px-4 py-2.5 rounded-lg text-xs font-heading font-bold uppercase transition-all { 'bg-[#D4AF37] text-black' if tab == 'subscribers' else 'bg-[#141414] text-neutral-400 hover:text-white' }"),
         cls="flex flex-wrap gap-2 mb-8"
     )
 
@@ -118,7 +249,6 @@ def get_admin(key: str = "", date: str = "", tab: str = "slots", msg: str = ""):
     slots_content = Div(
         # Date selector
         Form(
-            Input(type="hidden", name="key", value=key),
             Input(type="hidden", name="tab", value="slots"),
             Div(
                 Label("INSPECT DATE:", cls="text-xs font-heading font-bold text-neutral-400 uppercase mr-3"),
@@ -154,11 +284,10 @@ def get_admin(key: str = "", date: str = "", tab: str = "slots", msg: str = ""):
                         ) if slot.get("artist_name") else None,
                         cls="flex-grow"
                     ),
-                    # Action buttons to change status / clear booking
+                    # Action buttons
                     Div(
-                        # Clear / Delete Booking Button (appears whenever slot has booking info or is marked booked)
+                        # Clear / Delete Booking Button
                         Form(
-                            Input(type="hidden", name="key", value=key),
                             Input(type="hidden", name="slot_id", value=slot["id"]),
                             Input(type="hidden", name="date", value=date),
                             Button("🗑️ Clear / Delete Booking", type="submit", cls="text-[10px] bg-red-950 text-red-300 border border-red-800 hover:bg-red-800 hover:text-white px-2.5 py-1 rounded cursor-pointer font-bold transition-all"),
@@ -166,7 +295,6 @@ def get_admin(key: str = "", date: str = "", tab: str = "slots", msg: str = ""):
                             method="POST"
                         ) if (slot.get("status") == "booked" or slot.get("artist_name")) else None,
                         Form(
-                            Input(type="hidden", name="key", value=key),
                             Input(type="hidden", name="slot_id", value=slot["id"]),
                             Input(type="hidden", name="status", value="available"),
                             Input(type="hidden", name="date", value=date),
@@ -175,7 +303,6 @@ def get_admin(key: str = "", date: str = "", tab: str = "slots", msg: str = ""):
                             method="POST"
                         ),
                         Form(
-                            Input(type="hidden", name="key", value=key),
                             Input(type="hidden", name="slot_id", value=slot["id"]),
                             Input(type="hidden", name="status", value="booked"),
                             Input(type="hidden", name="date", value=date),
@@ -184,7 +311,6 @@ def get_admin(key: str = "", date: str = "", tab: str = "slots", msg: str = ""):
                             method="POST"
                         ),
                         Form(
-                            Input(type="hidden", name="key", value=key),
                             Input(type="hidden", name="slot_id", value=slot["id"]),
                             Input(type="hidden", name="status", value="blocked"),
                             Input(type="hidden", name="date", value=date),
@@ -208,7 +334,6 @@ def get_admin(key: str = "", date: str = "", tab: str = "slots", msg: str = ""):
         Div(
             H3("ADD YOUTUBE SHOWCASE / CYPHER", cls="text-sm font-heading font-bold text-[#D4AF37] uppercase mb-3"),
             Form(
-                Input(type="hidden", name="key", value=key),
                 Input(type="text", name="title", placeholder="Showcase / Cypher Episode Title *", required=True, cls="input-dark w-full text-xs mb-3 font-body"),
                 Input(type="text", name="youtube_url", placeholder="Paste YouTube URL or 11-char ID (e.g. https://youtu.be/dQw4w9WgXcQ) *", required=True, cls="input-dark w-full text-xs mb-3 font-mono"),
                 Textarea(name="description", placeholder="Short Description / Performer Lineup...", rows="2", cls="input-dark w-full text-xs mb-4 font-body"),
@@ -239,7 +364,6 @@ def get_admin(key: str = "", date: str = "", tab: str = "slots", msg: str = ""):
         Div(
             H3("ADD RAP FUNXTION EVENT", cls="text-sm font-heading font-bold text-[#D4AF37] uppercase mb-3"),
             Form(
-                Input(type="hidden", name="key", value=key),
                 Input(type="text", name="title", placeholder="Event Title (e.g. Rap Funxtion 17) *", required=True, cls="input-dark w-full text-xs mb-3 font-body"),
                 Input(type="text", name="date", placeholder="Date / Timeline (e.g. November 2026) *", required=True, cls="input-dark w-full text-xs mb-3 font-body"),
                 Input(type="text", name="status", placeholder="Status (e.g. Tickets Live, Rescheduling) *", value="Active", cls="input-dark w-full text-xs mb-3 font-body"),
@@ -264,7 +388,6 @@ def get_admin(key: str = "", date: str = "", tab: str = "slots", msg: str = ""):
                             cls="flex-grow"
                         ),
                         Form(
-                            Input(type="hidden", name="key", value=key),
                             Input(type="hidden", name="event_id", value=ev["id"]),
                             Button("🗑️ Delete Event", type="submit", cls="text-[10px] bg-red-950 text-red-300 border border-red-800 hover:bg-red-800 hover:text-white px-3 py-1.5 rounded cursor-pointer font-bold transition-all"),
                             action="/admin/events/delete",
@@ -312,7 +435,6 @@ def get_admin(key: str = "", date: str = "", tab: str = "slots", msg: str = ""):
             ),
             P("Publish posts to an artist's dedicated profile page. Posts appear instantly on /roster/{slug}.", cls="text-neutral-500 text-[10px] mb-4"),
             Form(
-                Input(type="hidden", name="key", value=key),
                 Div(
                     Label("ARTIST:", cls="text-[10px] font-heading font-bold text-neutral-400 uppercase block mb-1.5"),
                     Select(
@@ -360,7 +482,6 @@ def get_admin(key: str = "", date: str = "", tab: str = "slots", msg: str = ""):
                         Div(
                             A(f"View on profile →", href=f"/roster/{p.get('artist_slug')}#post-{p.get('id')}", cls="text-[10px] text-[#D4AF37] hover:text-[#FFD700] font-heading font-bold tracking-wider"),
                             Form(
-                                Input(type="hidden", name="key", value=key),
                                 Input(type="hidden", name="post_id", value=p.get('id', '')),
                                 Button("🗑️ Delete Post", type="submit", cls="text-[10px] text-rose-400 hover:text-rose-300 font-heading font-bold tracking-wider cursor-pointer bg-transparent border-0 p-0 hover:underline"),
                                 action="/admin/posts/delete",
@@ -398,7 +519,11 @@ def get_admin(key: str = "", date: str = "", tab: str = "slots", msg: str = ""):
                     H1("ADMIN CMS ENGINE", cls="font-heading text-3xl sm:text-4xl font-black text-white uppercase"),
                     cls="flex-grow"
                 ),
-                A("EXIT ADMIN", href="/", cls="btn-gold-outline text-xs py-1.5 px-4 font-heading"),
+                Div(
+                    A("LOGOUT", href="/admin/logout", cls="btn-gold-outline text-xs py-1.5 px-4 font-heading mr-2"),
+                    A("EXIT ADMIN", href="/", cls="btn-gold-outline text-xs py-1.5 px-4 font-heading"),
+                    cls="flex items-center"
+                ),
                 cls="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-[#1A1A1A] pb-6"
             ),
             # Message banner
@@ -418,64 +543,86 @@ def get_admin(key: str = "", date: str = "", tab: str = "slots", msg: str = ""):
 # ----------------- Admin Action Handlers -----------------
 
 @rt("/admin/slots/update")
-async def post_admin_slot_update(req):
-    form = await req.form()
-    key = form.get("key", "")
-    slot_id = form.get("slot_id", "")
-    status = form.get("status", "available")
-    date = form.get("date", "")
-
-    if key != ADMIN_KEY:
+async def post_admin_slot_update(req: Request):
+    if not is_admin_authenticated(req):
         return RedirectResponse("/admin", status_code=303)
+
+    form = await req.form()
+    slot_id = sanitize_identifier(str(form.get("slot_id", "")))
+    status = str(form.get("status", "available")).strip().lower()
+    date = str(form.get("date", "")).strip()
+
+    if not slot_id or status not in ("available", "booked", "blocked"):
+        return RedirectResponse("/admin?tab=slots&msg=Invalid+slot+parameters", status_code=303)
+
+    # Resource existence check
+    slot = get_slot_by_id(slot_id)
+    if not slot:
+        return RedirectResponse("/admin?tab=slots&msg=Slot+not+found", status_code=303)
 
     update_slot_status(slot_id, status)
-    return RedirectResponse(f"/admin?key={key}&tab=slots&date={date}&msg=Slot+status+updated+to+{status}", status_code=303)
+    return RedirectResponse(f"/admin?tab=slots&date={date}&msg=Slot+status+updated+to+{status}", status_code=303)
 
 @rt("/admin/slots/delete")
-def post_admin_slot_delete(key: str = "", slot_id: str = "", date: str = ""):
+async def post_admin_slot_delete(req: Request):
     """Delete a customer booking and reset the slot back to available."""
-    if key != ADMIN_KEY:
+    if not is_admin_authenticated(req):
         return RedirectResponse("/admin", status_code=303)
+
+    form = await req.form()
+    slot_id = sanitize_identifier(str(form.get("slot_id", "")))
+    date = str(form.get("date", "")).strip()
+
+    if not slot_id:
+        return RedirectResponse("/admin?tab=slots&msg=Invalid+slot+ID", status_code=303)
+
+    slot = get_slot_by_id(slot_id)
+    if not slot:
+        return RedirectResponse("/admin?tab=slots&msg=Slot+not+found", status_code=303)
 
     reset_slot_booking(slot_id)
-    return RedirectResponse(f"/admin?key={key}&tab=slots&date={date}&msg=Booking+deleted+and+slot+re-opened+for+booking", status_code=303)
+    return RedirectResponse(f"/admin?tab=slots&date={date}&msg=Booking+deleted+and+slot+re-opened+for+booking", status_code=303)
 
 @rt("/admin/slots/reset")
-def post_admin_slot_reset(key: str = "", slot_id: str = "", date: str = ""):
+async def post_admin_slot_reset(req: Request):
     """Reset a slot back to available (alias for delete)."""
-    return post_admin_slot_delete(key=key, slot_id=slot_id, date=date)
+    return await post_admin_slot_delete(req)
 
 @rt("/admin/showcases/add")
-async def post_admin_showcase_add(req):
-    form = await req.form()
-    key = form.get("key", "")
-    title = form.get("title", "").strip()
-    youtube_url = form.get("youtube_url", "").strip()
-    description = form.get("description", "").strip()
-
-    if key != ADMIN_KEY:
+async def post_admin_showcase_add(req: Request):
+    if not is_admin_authenticated(req):
         return RedirectResponse("/admin", status_code=303)
+
+    form = await req.form()
+    title = str(form.get("title", "")).strip()
+    youtube_url = str(form.get("youtube_url", "")).strip()
+    description = str(form.get("description", "")).strip()
+
+    if not title or not youtube_url:
+        return RedirectResponse("/admin?tab=showcases&msg=Title+and+YouTube+URL+are+required", status_code=303)
 
     yt_id, is_playlist = extract_youtube_id(youtube_url)
     if not yt_id:
-        return RedirectResponse(f"/admin?key={key}&tab=showcases&msg=Invalid+YouTube+URL", status_code=303)
+        return RedirectResponse("/admin?tab=showcases&msg=Invalid+YouTube+URL+or+ID", status_code=303)
 
     add_showcase(title=title, youtube_id=yt_id, description=description, is_playlist=is_playlist)
-    return RedirectResponse(f"/admin?key={key}&tab=showcases&msg=Showcase+published+successfully", status_code=303)
+    return RedirectResponse("/admin?tab=showcases&msg=Showcase+published+successfully", status_code=303)
 
 @rt("/admin/events/add")
-async def post_admin_event_add(req):
-    form = await req.form()
-    key = form.get("key", "").strip()
-    title = form.get("title", "").strip()
-    date = form.get("date", "").strip()
-    status = form.get("status", "Active").strip()
-    flyer_url = form.get("flyer_url", "").strip()
-    ticket_url = form.get("ticket_url", "").strip()
-    description = form.get("description", "").strip()
-
-    if key != ADMIN_KEY:
+async def post_admin_event_add(req: Request):
+    if not is_admin_authenticated(req):
         return RedirectResponse("/admin", status_code=303)
+
+    form = await req.form()
+    title = str(form.get("title", "")).strip()
+    date = str(form.get("date", "")).strip()
+    status = str(form.get("status", "Active")).strip()
+    flyer_url = sanitize_media_url(str(form.get("flyer_url", "")), allow_relative=True)
+    ticket_url = sanitize_media_url(str(form.get("ticket_url", "")), allow_relative=True, allow_hash=True)
+    description = str(form.get("description", "")).strip()
+
+    if not title or not date:
+        return RedirectResponse("/admin?tab=events&msg=Event+title+and+date+are+required", status_code=303)
 
     add_event(
         title=title,
@@ -485,47 +632,66 @@ async def post_admin_event_add(req):
         ticket_url=ticket_url,
         description=description
     )
-    return RedirectResponse(f"/admin?key={key}&tab=events&msg=Event+added+successfully", status_code=303)
+    return RedirectResponse("/admin?tab=events&msg=Event+added+successfully", status_code=303)
 
 @rt("/admin/events/delete")
-def post_admin_event_delete(key: str = "", event_id: str = ""):
+async def post_admin_event_delete(req: Request):
     """Delete an event from the roster and update admin view."""
-    if key != ADMIN_KEY:
+    if not is_admin_authenticated(req):
         return RedirectResponse("/admin", status_code=303)
+
+    form = await req.form()
+    event_id = sanitize_identifier(str(form.get("event_id", "")))
+
+    if not event_id:
+        return RedirectResponse("/admin?tab=events&msg=Invalid+event+ID", status_code=303)
+
+    # Check existence
+    events = get_events()
+    if not any(ev.get("id") == event_id for ev in events):
+        return RedirectResponse("/admin?tab=events&msg=Event+not+found", status_code=303)
 
     delete_event(event_id)
-    return RedirectResponse(f"/admin?key={key}&tab=events&msg=Event+deleted+successfully", status_code=303)
+    return RedirectResponse("/admin?tab=events&msg=Event+deleted+successfully", status_code=303)
 
 @rt("/admin/posts/add")
-async def post_admin_artist_post(req):
+async def post_admin_artist_post(req: Request):
     """Handle artist post creation from the Creator Portal."""
-    form = await req.form()
-    key = form.get("key", "").strip()
-    artist_slug = form.get("artist_slug", "").strip()
-    title = form.get("title", "").strip()
-    body = form.get("body", "").strip()
-    media_url = form.get("media_url", "").strip()
-
-    if key != ADMIN_KEY:
+    if not is_admin_authenticated(req):
         return RedirectResponse("/admin", status_code=303)
+
+    form = await req.form()
+    artist_slug = sanitize_identifier(str(form.get("artist_slug", "")))
+    title = str(form.get("title", "")).strip()
+    body = str(form.get("body", "")).strip()
+    media_url = sanitize_media_url(str(form.get("media_url", "")), allow_relative=True)
 
     if not artist_slug or not title or not body:
-        return RedirectResponse(f"/admin?key={key}&tab=posts&msg=Title+and+body+are+required", status_code=303)
+        return RedirectResponse("/admin?tab=posts&msg=Title+and+body+are+required", status_code=303)
+
+    # Validate artist slug is on roster
+    if not any(a["slug"] == artist_slug for a in ROSTER_ARTISTS):
+        return RedirectResponse("/admin?tab=posts&msg=Invalid+artist+selection", status_code=303)
 
     add_artist_post(artist_slug=artist_slug, title=title, body=body, media_url=media_url)
-    return RedirectResponse(f"/admin?key={key}&tab=posts&msg=Post+published+for+{artist_slug}", status_code=303)
+    return RedirectResponse(f"/admin?tab=posts&msg=Post+published+for+{artist_slug}", status_code=303)
 
 @rt("/admin/posts/delete")
-async def post_admin_artist_post_delete(req):
-    """Handle artist post deletion from the CMS."""
-    form = await req.form()
-    key = form.get("key", "").strip()
-    post_id = form.get("post_id", "").strip()
-
-    if key != ADMIN_KEY:
+async def post_admin_artist_post_delete(req: Request):
+    """Handle artist post deletion from the CMS with existence check."""
+    if not is_admin_authenticated(req):
         return RedirectResponse("/admin", status_code=303)
 
-    if post_id:
-        delete_artist_post(post_id)
+    form = await req.form()
+    post_id = sanitize_identifier(str(form.get("post_id", "")))
 
-    return RedirectResponse(f"/admin?key={key}&tab=posts&msg=Post+deleted+successfully", status_code=303)
+    if not post_id:
+        return RedirectResponse("/admin?tab=posts&msg=Invalid+post+ID", status_code=303)
+
+    # Resource existence check
+    posts = get_all_artist_posts()
+    if not any(p.get("id") == post_id for p in posts):
+        return RedirectResponse("/admin?tab=posts&msg=Post+not+found", status_code=303)
+
+    delete_artist_post(post_id)
+    return RedirectResponse("/admin?tab=posts&msg=Post+deleted+successfully", status_code=303)
