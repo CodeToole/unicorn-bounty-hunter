@@ -34,7 +34,6 @@ def Navbar(current_path: str = "/"):
             Div(
                 A(
                     Span("UBH", cls="text-2xl md:text-3xl font-black font-heading tracking-tighter text-white hover:text-[#D4AF37] transition-colors"),
-                    Span(" • COLLECTIVE", cls="hidden lg:inline text-[10px] tracking-[0.3em] text-[#D4AF37] font-heading ml-2"),
                     href="/",
                     cls="flex items-center group cursor-pointer"
                 ),
