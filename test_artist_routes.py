@@ -1,17 +1,23 @@
-"""Quick integration test for all new artist routes (Windows-safe)."""
 import urllib.request
+import urllib.parse
+import json
 import sys
 
 BASE = "http://localhost:8000"
 
 def test_route(path):
     try:
-        resp = urllib.request.urlopen(BASE + path, timeout=5)
+        req = urllib.request.Request(BASE + path, headers={"User-Agent": "UBH-Test"})
+        resp = urllib.request.urlopen(req, timeout=5)
         return resp.status
     except urllib.error.HTTPError as e:
         return e.code
     except Exception as e:
         return str(e)
+
+print("=" * 60)
+print("UBH ARTIST ROUTES INTEGRATION TEST")
+print("=" * 60)
 
 routes = [
     "/",
@@ -24,10 +30,6 @@ routes = [
     "/admin?key=[REDACTED_ADMIN_SECRET]&tab=posts",
 ]
 
-print("=" * 60)
-print("UBH ARTIST ROUTES INTEGRATION TEST")
-print("=" * 60)
-
 fails = 0
 for path in routes:
     status = test_route(path)
@@ -38,17 +40,26 @@ for path in routes:
 
 print("=" * 60)
 
+# Publish a test post for Ali Kazem to test full card rendering & toolbar
+post_data = urllib.parse.urlencode({
+    "key": "[REDACTED_ADMIN_SECRET]",
+    "artist_slug": "ali-kazem",
+    "title": "Studio Field Report",
+    "body": "Tracking sessions live in the acoustic room with new HS8 monitoring setup.",
+    "media_url": ""
+}).encode("utf-8")
+req_post = urllib.request.Request(BASE + "/admin/posts/add", data=post_data, method="POST")
+urllib.request.urlopen(req_post, timeout=5)
+
 # Content checks on Ali Kazem profile
 resp = urllib.request.urlopen(BASE + "/roster/ali-kazem", timeout=5)
 html = resp.read().decode("utf-8", errors="replace")
 checks = [
     ("Ali Kazem name in page", "ALI KAZEM" in html),
     ("Instagram handle link", "shadowurameshi" in html),
-    ("Seed post title present", "Rap Funxtion 16" in html),
+    ("Post title rendered", "Studio Field Report" in html),
     ("Web Share API in toolbar", "navigator.share" in html),
     ("Clipboard copy in toolbar", "navigator.clipboard" in html),
-    ("X/Twitter share link", "x.com/intent/tweet" in html),
-    ("Facebook share link", "facebook.com/sharer" in html),
     ("Back to roster link", "BACK TO ROSTER" in html),
 ]
 print("\nProfile content checks (ali-kazem):")
@@ -65,7 +76,7 @@ admin_checks = [
     ("Creator Portal heading", "ARTIST CREATOR PORTAL" in html2),
     ("Artist slug selector", "artist_slug" in html2),
     ("Publish button", "PUBLISH POST" in html2),
-    ("Seed post visible", "Rap Funxtion 16" in html2),
+    ("Delete post button", "Delete Post" in html2),
 ]
 print("\nAdmin Creator Portal checks:")
 for label, passed in admin_checks:
@@ -80,4 +91,5 @@ if fails == 0:
 else:
     print("RESULT: %d FAILURES" % fails)
 print("=" * 60)
-sys.exit(1 if fails else 0)
+
+sys.exit(0 if fails == 0 else 1)

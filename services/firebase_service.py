@@ -340,53 +340,20 @@ def add_showcase(title: str, youtube_id: str, description: str, is_playlist: boo
 
 # ----------------- Artist Posts -----------------
 
-_local_artist_posts: List[Dict[str, Any]] = [
-    {
-        "id": "post-ali-001",
-        "artist_slug": "ali-kazem",
-        "title": "Rap Funxtion 16 Update: New Venue Secured",
-        "body": "After months of negotiations, we have locked in a new venue for the Rap Funxtion 16 showcase. The space offers double the capacity, a professional lighting rig, and a dedicated green room for performers. Lineup confirmations are rolling in — expect the official date announcement within the next two weeks.\n\nThis is going to be the biggest RF yet. Stay locked in.",
-        "media_url": "/static/assets/rf16_flyer_new.jpg",
-        "published": True,
-        "created_at": "2026-08-20T14:00:00Z"
-    },
-    {
-        "id": "post-ali-002",
-        "artist_slug": "ali-kazem",
-        "title": "Studio Upgrades: New Monitoring System Installed",
-        "body": "The UBH studio just got a serious upgrade. We've installed a Yamaha HS8 monitoring system with acoustic treatment panels across the tracking room. Mixes coming out of this room are now reference-quality.\n\nBook your session at $50/hr and hear the difference.",
-        "media_url": "",
-        "published": True,
-        "created_at": "2026-08-15T10:30:00Z"
-    },
-    {
-        "id": "post-malik-001",
-        "artist_slug": "malik-rose",
-        "title": "New Single 'Golden Hour' Dropping Next Month",
-        "body": "I've been in the lab for the past six weeks working on something special. 'Golden Hour' is a three-track EP that explores vulnerability, ambition, and the quiet moments between studio sessions.\n\nProduction handled entirely in-house by Unkn0wn. Mixing and mastering by the UBH engineering team. Release date coming soon.",
-        "media_url": "",
-        "published": True,
-        "created_at": "2026-08-18T16:00:00Z"
-    },
-    {
-        "id": "post-unkn0wn-001",
-        "artist_slug": "unkn0wn",
-        "title": "Beat Pack Vol. 3: Free Download for UBH Roster",
-        "body": "Just dropped 15 new instrumentals for the collective. These are dark, atmospheric trap beats with heavy 808 patterns and cinematic string arrangements. All roster members have exclusive access before public release.\n\nIf you're an independent artist looking for production, DM me on Instagram.",
-        "media_url": "",
-        "published": True,
-        "created_at": "2026-08-19T09:00:00Z"
-    },
-    {
-        "id": "post-illie-001",
-        "artist_slug": "yung-illie",
-        "title": "Visual Campaign: UBH Uniform Lookbook Shoot Complete",
-        "body": "We just wrapped the official lookbook shoot for the UBH Uniform drop. Gray and Beige colorways photographed on location in the city. The creative direction for this collection pulls from military surplus aesthetics and underground streetwear culture.\n\nFull lookbook will be published alongside the merch drop announcement. Join the email list to get first access.",
-        "media_url": "",
-        "published": True,
-        "created_at": "2026-08-17T12:00:00Z"
-    }
-]
+_local_artist_posts: List[Dict[str, Any]] = []
+
+def delete_artist_post(post_id: str) -> bool:
+    """Delete an artist post by ID from Firestore collection 'artist_posts' and clear from local cache."""
+    global _local_artist_posts
+    if _is_firebase_initialized and _firestore_db:
+        try:
+            _firestore_db.collection("artist_posts").document(post_id).delete()
+        except Exception as err:
+            print(f"Firestore delete artist_post error: {err}")
+
+    original_len = len(_local_artist_posts)
+    _local_artist_posts = [p for p in _local_artist_posts if p.get("id") != post_id]
+    return True
 
 def get_artist_posts(artist_slug: str) -> List[Dict[str, Any]]:
     """Get all published posts for a given artist slug, sorted by created_at descending."""
