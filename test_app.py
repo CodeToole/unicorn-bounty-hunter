@@ -87,11 +87,14 @@ class TestUBHPlatform(unittest.TestCase):
         print("[OK] Stripe checkout session generation tests passed.")
 
     def test_homepage_news_carousel(self):
+        from services.firebase_service import add_artist_post, delete_artist_post
+        post = add_artist_post("ali-kazem", "Live From The Field", "Testing homepage carousel rendering.")
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
         self.assertIn("LATEST FROM THE HUNT", response.text)
         self.assertIn("READ ARTICLE", response.text)
         self.assertIn("NEWS &amp; FIELD DISPATCHES", response.text)
+        delete_artist_post(post["id"])
         print("[OK] Homepage Hero News Carousel tests passed.")
 
     def test_routes_endpoints(self):
@@ -121,6 +124,41 @@ class TestUBHPlatform(unittest.TestCase):
         self.assertIn("datastar-merge-fragments", response.text)
         self.assertIn("slot-container", response.text)
         print("[OK] Datastar SSE streaming endpoint test passed.")
+
+    def test_artist_post_create_and_delete(self):
+        # 1. Create a post
+        res_add = self.client.post("/admin/posts/add", data={
+            "key": "shadowurameshi2026",
+            "artist_slug": "ali-kazem",
+            "title": "Temporary Test Transmission",
+            "body": "This is a temporary test post to verify creation and deletion flow.",
+            "media_url": ""
+        }, follow_redirects=False)
+        self.assertEqual(res_add.status_code, 303)
+
+        # Verify post appears in admin tab
+        res_admin = self.client.get("/admin?key=shadowurameshi2026&tab=posts")
+        self.assertIn("Temporary Test Transmission", res_admin.text)
+        self.assertIn("🗑️ Delete Post", res_admin.text)
+
+        # 2. Extract post id from HTML or query
+        from services.firebase_service import get_all_artist_posts, delete_artist_post
+        posts = get_all_artist_posts()
+        created = [p for p in posts if p.get("title") == "Temporary Test Transmission"]
+        self.assertTrue(len(created) > 0)
+        post_id = created[0]["id"]
+
+        # 3. Delete the post via POST /admin/posts/delete
+        res_del = self.client.post("/admin/posts/delete", data={
+            "key": "shadowurameshi2026",
+            "post_id": post_id
+        }, follow_redirects=False)
+        self.assertEqual(res_del.status_code, 303)
+
+        # Verify post is removed
+        posts_after = get_all_artist_posts()
+        self.assertFalse(any(p.get("id") == post_id for p in posts_after))
+        print("[OK] Artist post creation and deletion tests passed.")
 
     def test_email_subscription_api(self):
         response = self.client.post("/subscribe", data={"email": "newfan@ubh.com"})

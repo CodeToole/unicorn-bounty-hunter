@@ -18,7 +18,8 @@ from services.firebase_service import (
     add_showcase,
     get_subscribers,
     get_all_artist_posts,
-    add_artist_post
+    add_artist_post,
+    delete_artist_post
 )
 
 admin_app = FastHTML()
@@ -355,8 +356,19 @@ def get_admin(key: str = "", date: str = "", tab: str = "slots", msg: str = ""):
                             cls="flex items-center gap-2 mb-2"
                         ),
                         H4(p.get('title', 'Untitled'), cls="font-heading font-bold text-sm text-white mb-1"),
-                        P(p.get('body', '')[:120] + ('...' if len(p.get('body', '')) > 120 else ''), cls="text-neutral-400 text-xs mb-2"),
-                        A(f"View on profile →", href=f"/roster/{p.get('artist_slug')}#post-{p.get('id')}", cls="text-[10px] text-[#D4AF37] hover:text-[#FFD700] font-heading font-bold tracking-wider"),
+                        P(p.get('body', '')[:120] + ('...' if len(p.get('body', '')) > 120 else ''), cls="text-neutral-400 text-xs mb-3"),
+                        Div(
+                            A(f"View on profile →", href=f"/roster/{p.get('artist_slug')}#post-{p.get('id')}", cls="text-[10px] text-[#D4AF37] hover:text-[#FFD700] font-heading font-bold tracking-wider"),
+                            Form(
+                                Input(type="hidden", name="key", value=key),
+                                Input(type="hidden", name="post_id", value=p.get('id', '')),
+                                Button("🗑️ Delete Post", type="submit", cls="text-[10px] text-rose-400 hover:text-rose-300 font-heading font-bold tracking-wider cursor-pointer bg-transparent border-0 p-0 hover:underline"),
+                                action="/admin/posts/delete",
+                                method="POST",
+                                cls="inline"
+                            ),
+                            cls="flex items-center justify-between mt-2 pt-2 border-t border-[#222222]"
+                        ),
                         cls="p-4 bg-[#141414] border border-[#262626] rounded-xl"
                     )
                     for p in all_posts
@@ -502,3 +514,18 @@ async def post_admin_artist_post(req):
 
     add_artist_post(artist_slug=artist_slug, title=title, body=body, media_url=media_url)
     return RedirectResponse(f"/admin?key={key}&tab=posts&msg=Post+published+for+{artist_slug}", status_code=303)
+
+@rt("/admin/posts/delete")
+async def post_admin_artist_post_delete(req):
+    """Handle artist post deletion from the CMS."""
+    form = await req.form()
+    key = form.get("key", "").strip()
+    post_id = form.get("post_id", "").strip()
+
+    if key != ADMIN_KEY:
+        return RedirectResponse("/admin", status_code=303)
+
+    if post_id:
+        delete_artist_post(post_id)
+
+    return RedirectResponse(f"/admin?key={key}&tab=posts&msg=Post+deleted+successfully", status_code=303)
