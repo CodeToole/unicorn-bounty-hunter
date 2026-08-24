@@ -1,12 +1,11 @@
 {
   "hosting": {
+    "site": "ubh-production-2026",
     "public": "static",
     "ignore": [
       "firebase.json",
       "**/.*",
-      "**/node_modules/**",
-      "**/.venv/**",
-      "**/__pycache__/**"
+      "**/node_modules/**"
     ],
     "rewrites": [
       {
