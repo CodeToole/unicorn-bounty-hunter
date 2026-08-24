@@ -224,7 +224,17 @@ def get_showcase():
 @rt("/rap-funxtion")
 def get_rap_funxtion():
     events = get_events()
-    active_event = events[0] if events else {}
+    active_event = events[0] if events else {
+        "title": "Rap Funxtion",
+        "status": "Coming Soon",
+        "date": "Coming Soon",
+        "description": "New dates, venue details, and lineup configurations are currently being finalized. Stay tuned for official announcements.",
+        "flyer_url": "/static/assets/rf16_flyer_new.jpg"
+    }
+
+    event_title = active_event.get("title", "RAP FUNXTION")
+    event_status = active_event.get("status", "Coming Soon")
+    event_desc = active_event.get("description", "New dates, venue details, and lineup configurations are currently being finalized. Stay tuned for official announcements.")
 
     lineup = [
         {"name": "Ali Kazem", "tag": "Headliner"},
@@ -242,11 +252,11 @@ def get_rap_funxtion():
             # Header
             Div(
                 Span("LIVE HIP-HOP EXPERIENCE", cls="text-xs font-heading font-bold tracking-[0.4em] text-[#D4AF37] uppercase block mb-3"),
-                H1("RAP FUNXTION", cls="font-heading text-4xl sm:text-6xl md:text-7xl font-black tracking-tight text-white uppercase mb-4"),
+                H1(event_title.upper(), cls="font-heading text-4xl sm:text-6xl md:text-7xl font-black tracking-tight text-white uppercase mb-4"),
                 Div(
-                    Span("STATUS: RESCHEDULING IN PROGRESS", cls="font-mono text-xs text-[#D4AF37] bg-[#1A1A1A] border border-[#D4AF37]/40 px-3 py-1.5 rounded-full inline-block mb-4 font-bold"),
+                    Span(f"STATUS: {event_status.upper()}", cls="font-mono text-xs text-[#D4AF37] bg-[#1A1A1A] border border-[#D4AF37]/40 px-4 py-2 rounded-full inline-block mb-4 font-bold tracking-wider shadow-lg"),
                     P(
-                        "The showcase date is being rescheduled. New venue configurations, date announcements, and performer additions will be delivered directly to the Hunt email roster.",
+                        event_desc,
                         cls="text-neutral-400 text-sm md:text-base max-w-2xl mx-auto leading-relaxed"
                     ),
                     cls="text-center"
