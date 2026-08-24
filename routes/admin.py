@@ -6,7 +6,7 @@ from typing import Optional
 
 from components.base import Layout
 from components.roster import ROSTER_ARTISTS
-from config import ADMIN_KEY
+from config import ADMIN_SECRET_KEY, ADMIN_KEY
 from services.firebase_service import (
     get_all_slots_for_date_admin,
     update_slot_status,

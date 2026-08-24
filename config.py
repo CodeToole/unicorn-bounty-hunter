@@ -28,7 +28,8 @@ STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "whsec_mock_key_ubh_2
 STRIPE_PUBLIC_KEY = os.getenv("STRIPE_PUBLIC_KEY", "pk_test_mock_key_ubh_2026")
 
 # Admin Security
-ADMIN_KEY = os.getenv("ADMIN_KEY", "[REDACTED_ADMIN_SECRET]")
+ADMIN_SECRET_KEY = os.getenv("ADMIN_SECRET_KEY", os.getenv("ADMIN_KEY", "[REDACTED_ADMIN_SECRET]"))
+ADMIN_KEY = ADMIN_SECRET_KEY
 
 # Firebase Configuration
 FIREBASE_STORAGE_BUCKET = os.getenv("FIREBASE_STORAGE_BUCKET", "ubh-production-2026.appspot.com")
