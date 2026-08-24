@@ -1,6 +1,7 @@
 import stripe
+import json
 from typing import Dict, Any, Optional
-from config import STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, DOMAIN_URL
+from config import STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, DOMAIN_URL, ENVIRONMENT
 from services.firebase_service import get_slot_by_id, update_slot_status
 
 stripe.api_key = STRIPE_SECRET_KEY
@@ -72,7 +73,13 @@ def create_checkout_session(
             )
             return {"url": session.url, "id": session.id, "is_mock": False, "price": price_usd, "package_name": package_name}
         except Exception as e:
-            print(f"Stripe API error: {e}. Generating simulated checkout link for local testing.")
+            print(f"Stripe API error: {e}.")
+            if ENVIRONMENT == "production":
+                return {"error": "Payment service temporarily unavailable. Please try again later."}
+
+    # Block mock checkout in production mode
+    if ENVIRONMENT == "production":
+        return {"error": "Live payment processing configuration required in production."}
 
     # Simulated Mock Checkout for local testing
     mock_session_id = f"cs_test_mock_{slot_id}_{int(price_usd)}"
@@ -100,18 +107,26 @@ def process_successful_payment(
     )
 
 def verify_webhook_event(payload: bytes, sig_header: str) -> Optional[Dict[str, Any]]:
+    # In production, ALWAYS enforce strict signature verification
+    if ENVIRONMENT == "production":
+        if not STRIPE_WEBHOOK_SECRET or STRIPE_WEBHOOK_SECRET.startswith("whsec_mock") or STRIPE_WEBHOOK_SECRET.startswith("placeholder"):
+            print("Webhook Error: STRIPE_WEBHOOK_SECRET must be configured in production.")
+            return None
+        try:
+            return stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
+        except Exception as e:
+            print(f"Webhook signature verification failed in production: {e}")
+            return None
+
+    # Dev/Mock fallback
     if STRIPE_WEBHOOK_SECRET and not STRIPE_WEBHOOK_SECRET.startswith("whsec_mock") and not STRIPE_WEBHOOK_SECRET.startswith("placeholder"):
         try:
-            event = stripe.Webhook.construct_event(
-                payload, sig_header, STRIPE_WEBHOOK_SECRET
-            )
-            return event
+            return stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
         except Exception as e:
             print(f"Webhook verification error: {e}")
             return None
-    # In mock / dev mode, attempt parsing json
+
     try:
-        import json
         return json.loads(payload.decode("utf-8"))
     except Exception:
         return None
