@@ -3,7 +3,7 @@ from starlette.responses import JSONResponse
 import datetime
 
 from components.base import Layout
-from components.roster import RosterSection, get_artist_by_slug, ROSTER_ARTISTS
+from components.roster import RosterSection, NewsCarousel, get_artist_by_slug, ROSTER_ARTISTS
 from components.calendar import BookingCalendar
 from components.player import YouTubeShowcasePlayer, BandcampVaultPlayer
 from components.artist_profile import ArtistProfilePage
@@ -12,7 +12,8 @@ from services.firebase_service import (
     get_events,
     get_showcases,
     add_subscriber,
-    get_artist_posts
+    get_artist_posts,
+    get_recent_artist_posts
 )
 
 public_app = FastHTML()
@@ -67,6 +68,10 @@ def get_home():
         cls="relative w-full overflow-hidden"
     )
 
+    # 5 Most Recent Artist Posts Carousel
+    recent_posts = get_recent_artist_posts(limit=5)
+    news_carousel = NewsCarousel(recent_posts)
+
     # Roster Section
     roster = RosterSection()
 
@@ -98,7 +103,7 @@ def get_home():
         cls="w-full relative z-20 bg-[#050505] border-t border-b border-[#1A1A1A]"
     )
 
-    return Layout("Official Collective & Studio", hero_section, roster, showcase_teaser, current_path="/")
+    return Layout("Official Collective & Studio", hero_section, news_carousel, roster, showcase_teaser, current_path="/")
 
 # ----------------- Services & Studio Booking -----------------
 @rt("/services")

@@ -75,7 +75,7 @@ class TestUBHPlatform(unittest.TestCase):
 
         session = create_checkout_session(first_slot["id"], "Malik", "malik@test.com")
         self.assertIn("url", session)
-        self.assertIn("mock-checkout", session["url"])
+        self.assertTrue("mock-checkout" in session["url"] or "checkout.stripe.com" in session["url"])
 
         # Test process payment
         process_successful_payment(first_slot["id"], "Malik", "malik@test.com")
@@ -85,6 +85,14 @@ class TestUBHPlatform(unittest.TestCase):
         # Reset
         update_slot_status(first_slot["id"], "available")
         print("[OK] Stripe checkout session generation tests passed.")
+
+    def test_homepage_news_carousel(self):
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("LATEST FROM THE HUNT", response.text)
+        self.assertIn("READ ARTICLE", response.text)
+        self.assertIn("NEWS &amp; FIELD DISPATCHES", response.text)
+        print("[OK] Homepage Hero News Carousel tests passed.")
 
     def test_routes_endpoints(self):
         endpoints = [

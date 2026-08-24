@@ -407,6 +407,25 @@ def get_artist_posts(artist_slug: str) -> List[Dict[str, Any]]:
     posts = [p for p in _local_artist_posts if p["artist_slug"] == artist_slug and p.get("published", True)]
     return sorted(posts, key=lambda x: x.get("created_at", ""), reverse=True)
 
+def get_recent_artist_posts(limit: int = 5) -> List[Dict[str, Any]]:
+    """Query the most recent published artist posts from Firestore collection 'artist_posts'."""
+    if _is_firebase_initialized and _firestore_db:
+        try:
+            docs = (
+                _firestore_db.collection("artist_posts")
+                .where("published", "==", True)
+                .order_by("created_at", direction=firestore.Query.DESCENDING)
+                .limit(limit)
+                .stream()
+            )
+            return [doc.to_dict() | {"id": doc.id} for doc in docs]
+        except Exception as err:
+            print(f"Firestore get recent artist_posts error: {err}")
+
+    posts = [p for p in _local_artist_posts if p.get("published", True)]
+    sorted_posts = sorted(posts, key=lambda x: x.get("created_at", ""), reverse=True)
+    return sorted_posts[:limit]
+
 def get_all_artist_posts() -> List[Dict[str, Any]]:
     """Get all published posts across all artists."""
     if _is_firebase_initialized and _firestore_db:
