@@ -25,7 +25,7 @@ Production web platform for Unicorn Bounty Hunter (UBH), featuring interactive s
 ## ⚡ Key Features
 
 - **Interactive Studio Booking Schedule**: Date selector dropdown with real-time SSE time-lock slots (e.g. 4-Hour $200 Locks) to prevent double-booking. Includes package toggles for Studio Recording and Shadow Talk Podcast sessions.
-- **Executive CMS Portal (`/admin`)**: Password-protected portal (`shadowurameshi2026`) for managing studio availability, resetting test bookings, managing event flyers, and reviewing email mailing list subscribers.
+- **Executive CMS Portal (`/admin`)**: Password-protected portal for managing studio availability, resetting test bookings, managing event flyers, and reviewing email mailing list subscribers.
 - **Artist Creator Portal & Profiles**: Dynamic roster pages (`/roster/{artist_slug}`) with individual article publishing, CMS post deletion, YouTube embeds, and mobile social sharing toolbars (Web Share API, X, Facebook, Copy Link).
 - **Homepage News Carousel**: "LATEST FROM THE HUNT" ticker displaying recent dispatches directly on the homepage.
 - **Rap Funxtion Showcase**: Live event management system initialized to "Coming Soon" with dynamic flyer uploads.
@@ -60,7 +60,7 @@ Production web platform for Unicorn Bounty Hunter (UBH), featuring interactive s
 Create a `.env` file in the root directory:
 ```bash
 STRIPE_SECRET_KEY=sk_live_...
-ADMIN_KEY=shadowurameshi2026
+ADMIN_SECRET_KEY=your_secure_admin_passcode
 PORT=8000
 DOMAIN_URL=http://localhost:8000
 ```
@@ -78,6 +78,10 @@ pip install -r requirements.txt
 python main.py
 ```
 Visit `http://localhost:8000` in your browser.
+
+### 4. Administrative Access
+- Console URL: `/admin` (e.g. `http://localhost:8000/admin`)
+- Passcode: Configured via environment variable `ADMIN_SECRET_KEY`
 
 ---
 
