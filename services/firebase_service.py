@@ -433,3 +433,128 @@ def add_artist_post(artist_slug: str, title: str, body: str, media_url: str = ""
     _local_artist_posts.insert(0, data)
     return data
 
+
+# ----------------- Multi-Tenant User Accounts & RBAC -----------------
+
+_local_user_accounts: List[Dict[str, Any]] = []
+
+def hash_password(password: str) -> str:
+    import hashlib
+    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+
+def create_user_account(email: str, password: str, role: str = "artist_admin", artist_slug: str = "") -> Dict[str, Any]:
+    email = email.strip().lower()
+    data = {
+        "email": email,
+        "password_hash": hash_password(password),
+        "role": role,
+        "artist_slug": artist_slug if role == "artist_admin" else "",
+        "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
+    }
+    if _is_firebase_initialized and _firestore_db:
+        try:
+            _firestore_db.collection("user_accounts").document(email).set(data)
+            return data
+        except Exception as err:
+            print(f"Firestore create user_account error: {err}")
+
+    # Local fallback
+    existing = [u for u in _local_user_accounts if u["email"] == email]
+    if existing:
+        existing[0].update(data)
+    else:
+        _local_user_accounts.append(data)
+    return data
+
+def authenticate_user_account(email: str, password: str) -> Optional[Dict[str, Any]]:
+    email = email.strip().lower()
+    pw_hash = hash_password(password)
+
+    if _is_firebase_initialized and _firestore_db:
+        try:
+            doc = _firestore_db.collection("user_accounts").document(email).get()
+            if doc.exists:
+                user = doc.to_dict()
+                if user.get("password_hash") == pw_hash:
+                    return user
+        except Exception as err:
+            print(f"Firestore authenticate user error: {err}")
+
+    # Local fallback
+    for u in _local_user_accounts:
+        if u["email"] == email and u.get("password_hash") == pw_hash:
+            return u
+    return None
+
+def get_all_user_accounts() -> List[Dict[str, Any]]:
+    if _is_firebase_initialized and _firestore_db:
+        try:
+            docs = _firestore_db.collection("user_accounts").stream()
+            return [doc.to_dict() for doc in docs]
+        except Exception as err:
+            print(f"Firestore get user_accounts error: {err}")
+    return _local_user_accounts
+
+# ----------------- Customizable Slot & Bulk Wipe System -----------------
+
+def add_custom_slot_for_date(date_str: str, time_label: str, duration: int, price: int) -> Dict[str, Any]:
+    """Create a new custom booking slot for a specific date."""
+    slot_id = f"{date_str}-custom-{int(datetime.datetime.now().timestamp())}"
+    data = {
+        "id": slot_id,
+        "date": date_str,
+        "time_label": time_label,
+        "duration": duration,
+        "price": price,
+        "status": "available",
+        "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
+    }
+
+    if _is_firebase_initialized and _firestore_db:
+        try:
+            _firestore_db.collection("booking_slots").document(slot_id).set(data)
+            return data
+        except Exception as err:
+            print(f"Firestore add custom slot error: {err}")
+
+    # Local store
+    slots = _local_slots.setdefault(date_str, [])
+    slots.append(data)
+    return data
+
+def delete_all_slots_for_date(date_str: str) -> bool:
+    """Wipe / delete all booking slots for a specific date."""
+    if _is_firebase_initialized and _firestore_db:
+        try:
+            docs = _firestore_db.collection("booking_slots").where("date", "==", date_str).stream()
+            for doc in docs:
+                doc.reference.delete()
+        except Exception as err:
+            print(f"Firestore delete all slots for date error: {err}")
+
+    _local_slots[date_str] = []
+    return True
+
+def block_entire_day_for_date(date_str: str) -> bool:
+    """Clear existing slots and block the entire day with a 'Maintenance / Closed' slot."""
+    delete_all_slots_for_date(date_str)
+    block_id = f"{date_str}-blocked"
+    data = {
+        "id": block_id,
+        "date": date_str,
+        "time_label": "ALL DAY BLOCK (Studio Closed / Maintenance)",
+        "duration": 24,
+        "price": 0,
+        "status": "maintenance",
+        "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
+    }
+
+    if _is_firebase_initialized and _firestore_db:
+        try:
+            _firestore_db.collection("booking_slots").document(block_id).set(data)
+            return True
+        except Exception as err:
+            print(f"Firestore block entire day error: {err}")
+
+    _local_slots[date_str] = [data]
+    return True
