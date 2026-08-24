@@ -235,10 +235,26 @@ def get_admin_logout():
         resp.delete_cookie(key=cname, path="/")
     return resp
 
-# ----------------- Admin CMS Dashboard -----------------
-
 @rt("/admin")
 def get_admin(req: Request, date: str = "", tab: str = "", msg: str = "", error: str = ""):
+    # 1. Clean URL Handler: If key query param is supplied, validate, set cookies, and redirect to clean /admin URL
+    key_param = req.query_params.get("key", "").strip()
+    if key_param and ADMIN_SECRET_KEY and hmac.compare_digest(key_param, ADMIN_SECRET_KEY):
+        target_tab = tab or "slots"
+        date_q = f"&date={date}" if date else ""
+        resp = RedirectResponse(f"/admin?tab={target_tab}{date_q}&msg=Authenticated+as+Super+Admin", status_code=303)
+        for cname in [FIREBASE_SESSION_COOKIE_NAME, SESSION_COOKIE_NAME]:
+            resp.set_cookie(
+                key=cname,
+                value=ADMIN_SECRET_KEY,
+                httponly=True,
+                samesite="lax",
+                secure=IS_PRODUCTION,
+                max_age=86400,
+                path="/"
+            )
+        return resp
+
     session = get_current_user_session(req)
 
     # PRE-QUERY AUTH CHECK: Show Login Form without querying any database models
