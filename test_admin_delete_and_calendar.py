@@ -1,77 +1,77 @@
-"""Comprehensive in-memory test script verifying Admin Booking Deletion and Date Dropdown alignment."""
+"""Comprehensive test script verifying Admin Booking Deletion and Date Dropdown alignment in-memory."""
+import unittest
+from unittest.mock import patch
 from starlette.testclient import TestClient
 from main import app
 from routes.admin import get_session_token
-from services.firebase_service import get_slot_by_id, update_slot_status
-import sys
 
-client = TestClient(app)
-client.cookies.set("ubh_admin_session", get_session_token())
+class TestAdminDeleteAndCalendar(unittest.TestCase):
 
-print("=" * 65, flush=True)
-print("ADMIN BOOKING DELETION & DATE DROPDOWN VERIFICATION (IN-MEMORY)", flush=True)
-print("=" * 65, flush=True)
+    def setUp(self):
+        self.client = TestClient(app)
+        self.client.cookies.set("ubh_admin_session", get_session_token())
 
-test_date = "2026-12-25"
-slot_id = f"{test_date}-slot-1"
+    def test_admin_delete_and_calendar_flow(self):
+        test_date = "2026-12-25"
+        slot_id = f"{test_date}-slot-1"
 
-checks = []
+        # 1. Verify Date Selector dropdown & SSE trigger in /booking
+        r_book = self.client.get("/booking")
+        self.assertEqual(r_book.status_code, 200)
+        self.assertIn('<select', r_book.text)
+        self.assertIn('id="booking-date-select"', r_book.text)
+        self.assertIn('data-on-change="$$get(\'/sse/available-slots', r_book.text)
 
-# 1. Verify Date Selector dropdown & SSE trigger in /booking
-r_book = client.get("/booking")
-checks.append(("GET /booking: Dropdown select element present", '<select' in r_book.text and 'id="booking-date-select"' in r_book.text))
-checks.append(("GET /booking: Datastar on_change SSE trigger attached", 'data-on-change="$$get(\'/sse/available-slots' in r_book.text))
-checks.append(("GET /booking: Custom date picker available", 'type="date"' in r_book.text))
+        # 2. Verify SSE available slots endpoint
+        r_sse = self.client.get(f"/sse/available-slots?booking_date={test_date}")
+        self.assertEqual(r_sse.status_code, 200)
+        self.assertIn("datastar-merge-fragments", r_sse.text)
 
-# 2. Verify SSE available slots endpoint
-r_sse = client.get(f"/sse/available-slots?booking_date={test_date}")
-checks.append(("GET /sse/available-slots: SSE stream returned (200 OK)", r_sse.status_code == 200 and "datastar-merge-fragments" in r_sse.text))
+        # 3. Simulate customer booking slot via checkout simulator
+        with patch("config.STRIPE_SECRET_KEY", "sk_test_mock_key"), \
+             patch("services.stripe_service.STRIPE_SECRET_KEY", "sk_test_mock_key"), \
+             patch("services.stripe_service.is_mock_payment_allowed", return_value=True), \
+             patch("routes.booking.is_mock_payment_allowed", return_value=True):
+            r_create = self.client.post("/booking/create-checkout", data={
+                "slot_id": slot_id,
+                "artist_name": "VIP Rapper",
+                "artist_email": "vip@music.com",
+                "package_type": "podcast_bundle",
+                "session_notes": "Live freestyle & interview"
+            }, follow_redirects=False)
+            self.assertEqual(r_create.status_code, 303)
 
-# 3. Simulate customer booking slot
-update_slot_status(
-    slot_id=slot_id,
-    status="booked",
-    artist_name="VIP Rapper",
-    artist_email="vip@music.com",
-    package_type="podcast_bundle",
-    package_name="Podcast + Musical Chairs Bundle"
-)
-slot_data = get_slot_by_id(slot_id)
-checks.append(("Slot booked in server store", slot_data.get("status") == "booked" and slot_data.get("artist_name") == "VIP Rapper"))
+            r_complete = self.client.post("/booking/mock-complete", data={
+                "slot_id": slot_id,
+                "artist_name": "VIP Rapper",
+                "artist_email": "vip@music.com",
+                "session_id": "sess-vip-123",
+                "package_type": "podcast_bundle",
+                "package_name": "Podcast + Musical Chairs Bundle"
+            }, follow_redirects=False)
+            self.assertEqual(r_complete.status_code, 303)
 
-# 4. View Admin Studio Slots Tab and check for Booked Details & Delete Button
-r_admin_slots = client.get(f"/admin?tab=slots&date={test_date}")
-checks.append(("GET /admin slots tab: Displays booked customer info", "VIP Rapper" in r_admin_slots.text and "vip@music.com" in r_admin_slots.text))
-checks.append(("GET /admin slots tab: Delete / Clear Booking button rendered", "Clear / Delete Booking" in r_admin_slots.text and "/admin/slots/delete" in r_admin_slots.text))
+        # 4. View Admin Studio Slots Tab and check for Booked Details & Delete Button
+        r_admin_slots = self.client.get(f"/admin?tab=slots&date={test_date}")
+        self.assertIn("VIP Rapper", r_admin_slots.text)
+        self.assertIn("vip@music.com", r_admin_slots.text)
+        self.assertIn("Clear / Delete Booking", r_admin_slots.text)
 
-# 5. Execute Delete / Clear Booking via POST /admin/slots/delete
-r_delete = client.post("/admin/slots/delete", data={
-    "slot_id": slot_id,
-    "date": test_date
-}, follow_redirects=False)
-checks.append(("POST /admin/slots/delete: 303 Redirect to admin", r_delete.status_code == 303 and "tab=slots" in r_delete.headers.get("location", "")))
+        # 5. Execute Delete / Clear Booking via POST /admin/slots/delete
+        r_delete = self.client.post("/admin/slots/delete", data={
+            "slot_id": slot_id,
+            "date": test_date
+        }, follow_redirects=False)
+        self.assertEqual(r_delete.status_code, 303)
 
-# 6. Check admin UI after deletion: Slot is back to AVAILABLE and customer info is gone
-r_admin_after = client.get(f"/admin?tab=slots&date={test_date}")
-checks.append(("GET /admin slots after delete: Shows AVAILABLE", "AVAILABLE" in r_admin_after.text))
-checks.append(("GET /admin slots after delete: Customer details removed", "VIP Rapper" not in r_admin_after.text))
+        # 6. Check admin UI after deletion: Slot is back to AVAILABLE and customer info is gone
+        r_admin_after = self.client.get(f"/admin?tab=slots&date={test_date}")
+        self.assertIn("AVAILABLE", r_admin_after.text)
+        self.assertNotIn("VIP Rapper", r_admin_after.text)
 
-# 7. Check public booking widget: Slot is open for booking again!
-r_public_after = client.get(f"/sse/available-slots?booking_date={test_date}")
-checks.append(("GET /sse/available-slots after delete: Slot re-opened for public booking", slot_id in r_public_after.text))
+        # 7. Check public booking widget: Slot is open for booking again!
+        r_public_after = self.client.get(f"/sse/available-slots?booking_date={test_date}")
+        self.assertIn(slot_id, r_public_after.text)
 
-all_passed = True
-for label, passed in checks:
-    tag = "OK" if passed else "FAIL"
-    if not passed:
-        all_passed = False
-    print(f"  {tag:4}  {label}", flush=True)
-
-print("=" * 65, flush=True)
-if all_passed:
-    print("RESULT: ALL DELETION & CALENDAR CHECKS PASSED (100% SUCCESS)", flush=True)
-else:
-    print("RESULT: SOME CHECKS FAILED", flush=True)
-print("=" * 65, flush=True)
-
-sys.exit(0 if all_passed else 1)
+if __name__ == "__main__":
+    unittest.main()

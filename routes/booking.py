@@ -1,7 +1,7 @@
 from fasthtml.common import *
 from starlette.responses import RedirectResponse, JSONResponse, Response
-import datetime
 import urllib.parse
+import datetime
 
 from components.base import Layout
 from components.calendar import BookingCalendar
@@ -12,31 +12,42 @@ from config import is_mock_payment_allowed
 booking_app = FastHTML()
 rt = booking_app.route
 
+# ----------------- Main Studio Booking Portal -----------------
 @rt("/booking")
 def get_booking(error: str = "", cancelled: str = ""):
     today_str = datetime.date.today().isoformat()
     slots = get_slots_for_date(today_str)
 
+    calendar_view = BookingCalendar(selected_date=today_str, slots=slots)
+
     content = Div(
         Div(
-            # Notifications / Errors
+            # Header
             Div(
-                P(f"⚠️ {error}", cls="text-rose-400 font-bold text-sm text-center"),
-                cls="mb-6 p-4 bg-rose-950/40 border border-rose-800/60 rounded-xl"
+                Span("REAL-TIME STUDIO SCHEDULING", cls="text-xs font-heading font-bold tracking-[0.4em] text-[#D4AF37] uppercase block mb-3"),
+                H1("BOOK STUDIO TIME", cls="font-heading text-4xl sm:text-6xl font-black tracking-tight text-white uppercase mb-4"),
+                P("Lock in tracking, podcast recording, or mix engineering blocks directly on our official studio calendar.", cls="text-neutral-400 text-sm md:text-base max-w-xl mx-auto leading-relaxed"),
+                cls="text-center mb-10"
+            ),
+            # Alert Banners
+            Div(
+                P(f"⚠️ {error}", cls="text-rose-400 text-xs font-bold text-center"),
+                cls="max-w-2xl mx-auto mb-6 p-3 bg-rose-950/40 border border-rose-800/60 rounded-xl"
             ) if error else None,
             Div(
-                P("Session booking was cancelled. Feel free to choose another date, package, or time below.", cls="text-amber-400 text-sm text-center"),
-                cls="mb-6 p-4 bg-amber-950/40 border border-amber-800/60 rounded-xl"
+                P("Checkout cancelled. Your time slot remains temporarily available.", cls="text-amber-400 text-xs font-bold text-center"),
+                cls="max-w-2xl mx-auto mb-6 p-3 bg-amber-950/40 border border-amber-800/60 rounded-xl"
             ) if cancelled else None,
-            # Interactive Calendar Component
-            BookingCalendar(selected_date=today_str, slots=slots),
-            cls="max-w-4xl mx-auto px-6 py-12"
+            # Interactive Calendar Card
+            calendar_view,
+            cls="max-w-5xl mx-auto px-6 py-12 md:py-16"
         ),
         cls="w-full min-h-screen bg-[#0A0A0A]"
     )
 
-    return Layout("Reserve Studio & Broadcast Time", content, current_path="/booking")
+    return Layout("Book Studio Session | UBH", content, current_path="/booking")
 
+# ----------------- Create Stripe Checkout Handler -----------------
 @rt("/booking/create-checkout")
 async def post_create_checkout(req):
     try:
@@ -310,7 +321,7 @@ async def post_stripe_webhook(req):
                     package_type=package_type,
                     package_name=package_name
                 )
-                print(f"Stripe Webhook: Slot {slot_id} marked booked for {artist_name} ({display_pkg if (display_pkg := package_name) else package_type})")
+                print(f"Stripe Webhook: Slot {slot_id} marked booked for {artist_name} ({package_name or package_type})")
 
         return JSONResponse({"status": "success", "received": True})
     except Exception as e:

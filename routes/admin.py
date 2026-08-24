@@ -5,7 +5,8 @@ import re
 import datetime
 import hashlib
 import hmac
-from typing import Optional
+import secrets
+from typing import Optional, Union
 
 from components.base import Layout
 from components.roster import ROSTER_ARTISTS

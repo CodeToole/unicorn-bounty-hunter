@@ -1,4 +1,5 @@
 import os
+import secrets
 from pathlib import Path
 
 # Load .env file automatically if present
@@ -46,12 +47,12 @@ def is_mock_payment_allowed() -> bool:
     return not IS_PRODUCTION and not is_live_stripe_enabled()
 
 # Admin Security
-if IS_PRODUCTION:
-    # In production, require explicit secret key from environment with no fallback
-    ADMIN_SECRET_KEY = os.getenv("ADMIN_SECRET_KEY") or os.getenv("ADMIN_KEY") or ""
-else:
-    # In dev/test mode, provide default local development key
-    ADMIN_SECRET_KEY = os.getenv("ADMIN_SECRET_KEY") or os.getenv("ADMIN_KEY") or "[REDACTED_ADMIN_SECRET]"
+ADMIN_SECRET_KEY = os.getenv("ADMIN_SECRET_KEY", os.getenv("ADMIN_KEY", ""))
+if not ADMIN_SECRET_KEY:
+    if IS_PRODUCTION:
+        raise RuntimeError("ADMIN_SECRET_KEY environment variable must be set in production mode.")
+    else:
+        ADMIN_SECRET_KEY = "[REDACTED_ADMIN_SECRET]"
 
 ADMIN_KEY = ADMIN_SECRET_KEY
 

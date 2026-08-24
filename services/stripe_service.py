@@ -1,4 +1,5 @@
 import stripe
+import json
 from typing import Dict, Any, Optional
 from config import (
     STRIPE_SECRET_KEY,
@@ -117,7 +118,8 @@ def verify_webhook_event(payload: bytes, sig_header: str) -> Optional[Dict[str, 
     In production mode, strictly enforces HMAC signature verification with construct_event.
     """
     if IS_PRODUCTION:
-        if not STRIPE_WEBHOOK_SECRET or not sig_header:
+        if not STRIPE_WEBHOOK_SECRET or not sig_header or STRIPE_WEBHOOK_SECRET.startswith("whsec_mock") or STRIPE_WEBHOOK_SECRET.startswith("placeholder"):
+            print("Webhook Error: STRIPE_WEBHOOK_SECRET must be configured in production.")
             return None
         try:
             return stripe.Webhook.construct_event(
@@ -139,7 +141,6 @@ def verify_webhook_event(payload: bytes, sig_header: str) -> Optional[Dict[str, 
 
     # Fallback for dev / mock testing
     try:
-        import json
         return json.loads(payload.decode("utf-8"))
     except Exception:
         return None
