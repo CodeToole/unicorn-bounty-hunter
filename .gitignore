@@ -34,3 +34,8 @@ migrate_working_dir/
 *.iws
 .idea/
 .vscode/
+
+# Secrets and temporary files
+.sesskey
+*.txt
+
