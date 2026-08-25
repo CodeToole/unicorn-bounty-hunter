@@ -38,4 +38,4 @@ migrate_working_dir/
 # Secrets and temporary files
 .sesskey
 *.txt
-
+!requirements.txt
