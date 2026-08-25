@@ -1,6 +1,7 @@
 import unittest
 from starlette.testclient import TestClient
 from main import app
+from config import ADMIN_SECRET_KEY
 from services.firebase_service import create_user_account, get_slots_for_date, get_all_slots_for_date_admin
 
 class TestRBACAndCustomSlots(unittest.TestCase):
@@ -48,21 +49,21 @@ class TestRBACAndCustomSlots(unittest.TestCase):
 
     def test_super_admin_custom_slots_and_bulk_wipe(self):
         # 1. Login as Super Admin
-        self.client.post("/admin/login", data={"key": "[REDACTED_ADMIN_SECRET]"})
+        self.client.post("/admin/login", data={"key": ADMIN_SECRET_KEY})
 
         test_date = "2026-10-31"
 
         # 2. Add custom time slot
         res_custom = self.client.post("/admin/slots/add-custom", data={
             "date": test_date,
-            "time_label": "Midnight Vocal Lock (12:00 AM – 3:00 AM)",
+            "time_label": "Midnight Vocal Lock (12:00 AM - 3:00 AM)",
             "duration": "3",
             "price": "150"
         })
         self.assertEqual(res_custom.status_code, 303)
 
         slots = get_slots_for_date(test_date)
-        self.assertTrue(any(s["time_label"] == "Midnight Vocal Lock (12:00 AM – 3:00 AM)" for s in slots))
+        self.assertTrue(any(s["time_label"] == "Midnight Vocal Lock (12:00 AM - 3:00 AM)" for s in slots))
 
         # 3. Block entire day
         res_block = self.client.post("/admin/slots/block-day", data={"date": test_date})
