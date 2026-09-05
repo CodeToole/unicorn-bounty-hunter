@@ -52,7 +52,7 @@ if not ADMIN_SECRET_KEY:
     if IS_PRODUCTION:
         raise RuntimeError("ADMIN_SECRET_KEY environment variable must be set in production mode.")
     else:
-        ADMIN_SECRET_KEY = "[REDACTED_ADMIN_SECRET]"
+        ADMIN_SECRET_KEY = secrets.token_hex(32)
 
 ADMIN_KEY = ADMIN_SECRET_KEY
 
