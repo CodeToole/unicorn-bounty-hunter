@@ -13,8 +13,50 @@ from services.firebase_service import (
     get_showcases,
     add_subscriber,
     get_artist_posts,
-    get_recent_artist_posts
+    get_recent_artist_posts,
+    get_dispatches,
+    get_dispatch_by_id,
+    increment_dispatch_views
 )
+import re as _re
+
+# YouTube ID extractor for thumbnail generation
+_YT_VIDEO_RE = _re.compile(
+    r'(?:https?://)?(?:www\.)?(?:youtube\.com/(?:[^/\n\s]+/\S+/|(?:v|e(?:mbed)?|shorts)/|\S*?[?&]v=)|youtu\.be/)([a-zA-Z0-9_-]{11})',
+    _re.IGNORECASE
+)
+
+def _extract_yt_id(url: str) -> str:
+    """Extract 11-char YouTube video ID from a URL. Returns empty string if not found."""
+    if not url:
+        return ""
+    m = _YT_VIDEO_RE.search(url)
+    return m.group(1) if m else ""
+
+def _dispatch_thumbnail(d: dict) -> str:
+    """Resolve thumbnail URL: custom → YouTube auto → fallback gradient placeholder."""
+    if d.get("thumbnail_url"):
+        return d["thumbnail_url"]
+    yt_id = _extract_yt_id(d.get("video_url", ""))
+    if yt_id:
+        return f"https://img.youtube.com/vi/{yt_id}/hqdefault.jpg"
+    return ""
+
+def _dispatch_embed_url(d: dict) -> str:
+    """Generate embeddable video URL from a dispatch's video_url."""
+    url = d.get("video_url", "")
+    yt_id = _extract_yt_id(url)
+    if yt_id:
+        return f"https://www.youtube.com/embed/{yt_id}?rel=0&modestbranding=1"
+    # Direct MP4 or other URL — return as-is for <video> tag
+    return url
+
+CATEGORY_COLORS = {
+    "Cypher": ("bg-fuchsia-500/20 text-fuchsia-400 border-fuchsia-500/40", "🎤"),
+    "Exclusive": ("bg-amber-500/20 text-amber-400 border-amber-500/40", "⚡"),
+    "Behind The Scenes": ("bg-cyan-500/20 text-cyan-400 border-cyan-500/40", "🎬"),
+    "Drop": ("bg-emerald-500/20 text-emerald-400 border-emerald-500/40", "💿"),
+}
 
 public_app = FastHTML()
 rt = public_app.route
@@ -225,97 +267,211 @@ def get_showcase():
 
     return Layout("Musical Chairs Showcase", content, current_path="/showcase")
 
-# ----------------- Rap Funxtion Live Events -----------------
+# ----------------- Rap Funxtion Dispatch Feed -----------------
+
+def _dispatch_card(d: dict, compact: bool = False) -> Div:
+    """Render a single dispatch feed card."""
+    thumb = _dispatch_thumbnail(d)
+    cat = d.get("category_tag", "Drop")
+    cat_cls, cat_icon = CATEGORY_COLORS.get(cat, CATEGORY_COLORS["Drop"])
+    date_str = d.get("created_at", "")[:10]
+    views = d.get("views", 0)
+
+    if compact:
+        # Compact card for recommendation rail
+        return A(
+            Div(
+                Div(
+                    Img(src=thumb, alt=d.get("title", ""), cls="w-full h-full object-cover") if thumb else Div(cls="w-full h-full bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D]"),
+                    cls="w-24 h-14 rounded-lg overflow-hidden flex-shrink-0 border border-[#222222]"
+                ),
+                Div(
+                    H4(d.get("title", "Untitled"), cls="font-heading font-bold text-xs text-white leading-tight line-clamp-2 mb-1"),
+                    Span(d.get("author", ""), cls="text-[10px] text-neutral-500 font-body"),
+                    cls="flex-grow min-w-0"
+                ),
+                cls="flex gap-3 items-start p-2 bg-[#0D0D0D] hover:bg-[#141414] border border-[#1A1A1A] hover:border-[#D4AF37]/30 rounded-lg transition-all"
+            ),
+            href=f"/rap-funxtion/watch/{d.get('id', '')}",
+            cls="block"
+        )
+
+    # Full-width feed card
+    return A(
+        Div(
+            # Thumbnail
+            Div(
+                Img(src=thumb, alt=d.get("title", ""), cls="w-full h-full object-cover") if thumb else Div(cls="w-full h-full bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D]"),
+                # Play overlay
+                Div(
+                    Span("▶", cls="text-white text-xl"),
+                    cls="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                ),
+                cls="relative w-full sm:w-64 md:w-72 aspect-video rounded-xl overflow-hidden flex-shrink-0 border border-[#222222] group-hover:border-[#D4AF37]/40 transition-colors"
+            ),
+            # Meta
+            Div(
+                # Category tag
+                Span(
+                    f"{cat_icon} {cat.upper()}",
+                    cls=f"text-[10px] font-mono font-bold tracking-wider px-2.5 py-1 rounded-full border inline-block mb-3 {cat_cls}"
+                ),
+                H3(d.get("title", "Untitled"), cls="font-heading font-bold text-lg md:text-xl text-white uppercase leading-tight mb-2 group-hover:text-[#D4AF37] transition-colors"),
+                Div(
+                    Span(d.get("author", ""), cls="text-xs font-body text-neutral-300 font-semibold"),
+                    Span("•", cls="text-neutral-600 text-xs mx-2"),
+                    Span(f"👁 {views:,}", cls="text-xs font-mono text-neutral-500"),
+                    Span("•", cls="text-neutral-600 text-xs mx-2"),
+                    Span(date_str, cls="text-xs font-mono text-neutral-500"),
+                    cls="flex items-center flex-wrap gap-y-1"
+                ),
+                cls="flex-grow flex flex-col justify-center py-2"
+            ),
+            cls="flex flex-col sm:flex-row gap-4 md:gap-6 p-4 md:p-5 bg-[#0D0D0D] hover:bg-[#111111] border border-[#1A1A1A] hover:border-[#D4AF37]/30 rounded-2xl transition-all"
+        ),
+        href=f"/rap-funxtion/watch/{d.get('id', '')}",
+        cls="block group"
+    )
+
 @rt("/rap-funxtion")
 def get_rap_funxtion():
-    events = get_events()
-    active_event = events[0] if events else {
-        "title": "Rap Funxtion",
-        "status": "Coming Soon",
-        "date": "Coming Soon",
-        "description": "New dates, venue details, and lineup configurations are currently being finalized. Stay tuned for official announcements.",
-        "flyer_url": "/static/assets/rf16_flyer_new.jpg"
-    }
+    dispatches = get_dispatches(limit=20)
 
-    event_title = active_event.get("title", "RAP FUNXTION")
-    event_status = active_event.get("status", "Coming Soon")
-    event_desc = active_event.get("description", "New dates, venue details, and lineup configurations are currently being finalized. Stay tuned for official announcements.")
-
-    lineup = [
-        {"name": "Ali Kazem", "tag": "Headliner"},
-        {"name": "Tayo-Sei", "tag": "Featured"},
-        {"name": "Whoistidez", "tag": "Featured"},
-        {"name": "Lowkee (G.O.M)", "tag": "Featured"},
-        {"name": "Unknown", "tag": "Featured"},
-        {"name": "Yung Illie", "tag": "Featured"},
-        {"name": "Ongopeppo", "tag": "Featured"},
-        {"name": "Merro", "tag": "Featured"},
-    ]
+    # Build feed cards or empty state
+    if dispatches:
+        feed_items = Div(
+            *[_dispatch_card(d) for d in dispatches],
+            cls="space-y-4"
+        )
+    else:
+        feed_items = Div(
+            Div(
+                Span("📡", cls="text-4xl block mb-4"),
+                H3("NO ACTIVE BROADCASTS", cls="font-heading font-black text-xl text-white uppercase mb-2"),
+                P("Check back soon for new cyphers, exclusives, and underground dispatches.", cls="text-neutral-400 text-sm"),
+                cls="text-center p-12 bg-[#0D0D0D] border border-[#1A1A1A] rounded-2xl"
+            ),
+            id="empty-feed"
+        )
 
     content = Div(
         Div(
             # Header
             Div(
-                Span("LIVE HIP-HOP EXPERIENCE", cls="text-xs font-heading font-bold tracking-[0.4em] text-[#D4AF37] uppercase block mb-3"),
-                H1(event_title.upper(), cls="font-heading text-4xl sm:text-6xl md:text-7xl font-black tracking-tight text-white uppercase mb-4"),
-                Div(
-                    Span(f"STATUS: {event_status.upper()}", cls="font-mono text-xs text-[#D4AF37] bg-[#1A1A1A] border border-[#D4AF37]/40 px-4 py-2 rounded-full inline-block mb-4 font-bold tracking-wider shadow-lg"),
-                    P(
-                        event_desc,
-                        cls="text-neutral-400 text-sm md:text-base max-w-2xl mx-auto leading-relaxed"
-                    ),
-                    cls="text-center"
+                Span("RAP FUNXTION MEDIA NETWORK", cls="text-xs font-heading font-bold tracking-[0.4em] text-[#D4AF37] uppercase block mb-3"),
+                H1("RAP FUNXTION DISPATCHES", cls="font-heading text-4xl sm:text-5xl md:text-7xl font-black tracking-tight text-white uppercase mb-4"),
+                P(
+                    "Raw cyphers, studio sessions, and exclusive underground dispatches.",
+                    cls="text-neutral-400 text-sm md:text-base max-w-2xl mx-auto leading-relaxed"
                 ),
+                Span(f"{len(dispatches)} DISPATCH{'ES' if len(dispatches) != 1 else ''} LIVE", cls="font-mono text-[10px] text-[#D4AF37] bg-[#1A1A1A] border border-[#D4AF37]/40 px-3 py-1.5 rounded-full inline-block mt-4 font-bold tracking-wider") if dispatches else None,
                 cls="text-center mb-12"
             ),
-            # Official Flyer Card
-            Div(
-                Div(
-                    Img(
-                        src=active_event.get("flyer_url", "/static/assets/rf16_flyer_new.jpg"),
-                        alt="Rap Funxtion Official Showcase Flyer",
-                        cls="w-full max-w-md rounded-2xl shadow-2xl gold-glow border border-[#D4AF37]/30 mx-auto"
-                    ),
-                    cls="flex justify-center mb-16"
-                ),
-                # The Lineup Grid
-                Div(
-                    Div(
-                        Div(cls="w-16 h-[1px] bg-gradient-to-r from-transparent to-[#D4AF37]/60"),
-                        Span("PERFORMING LIVE", cls="font-body text-[#D4AF37] text-xs tracking-[0.4em] uppercase font-semibold"),
-                        Div(cls="w-16 h-[1px] bg-gradient-to-l from-transparent to-[#D4AF37]/60"),
-                        cls="flex items-center justify-center gap-4 mb-4"
-                    ),
-                    H2("THE LINEUP", cls="font-heading text-3xl sm:text-4xl md:text-5xl font-black tracking-tight text-white uppercase text-center mb-10"),
-                    Div(
-                        *[
-                            Div(
-                                Div(
-                                    # Monogram circle
-                                    Div(
-                                        Span(artist["name"][0].upper(), cls="font-heading font-black text-xl text-neutral-400 group-hover:text-[#D4AF37] transition-colors"),
-                                        cls="w-16 h-16 rounded-full bg-[#111111] border border-[#222222] group-hover:border-[#D4AF37]/50 flex items-center justify-center mb-4 transition-colors"
-                                    ),
-                                    H3(artist["name"], cls="font-heading font-bold text-base text-[#D4AF37] uppercase mb-1"),
-                                    Span(artist["tag"], cls="text-[11px] font-body text-neutral-400 uppercase tracking-widest"),
-                                    cls="p-6 bg-[#0D0D0D] border border-[#1E1E1E] hover:border-[#D4AF37]/60 rounded-xl flex flex-col items-center text-center card-hover-gold"
-                                ),
-                                cls="group"
-                            )
-                            for artist in lineup
-                        ],
-                        cls="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-4 md:gap-6"
-                    ),
-                    cls="max-w-5xl mx-auto mb-16"
-                ),
-                cls="w-full"
-            ),
-            cls="max-w-6xl mx-auto px-6 py-12 md:py-20"
+            # Feed
+            feed_items,
+            cls="max-w-4xl mx-auto px-6 py-12 md:py-20"
         ),
         cls="w-full min-h-screen bg-[#0A0A0A]"
     )
 
-    return Layout("Rap Funxtion Live Showcase", content, current_path="/rap-funxtion")
+    return Layout("Rap Funxtion Dispatches", content, current_path="/rap-funxtion")
+
+# ----------------- Dispatch Watch / Player Page -----------------
+@rt("/rap-funxtion/watch/{dispatch_id}")
+def get_dispatch_watch(dispatch_id: str):
+    dispatch = get_dispatch_by_id(dispatch_id)
+    if not dispatch:
+        error_content = Div(
+            Div(
+                Span("404", cls="text-6xl font-heading font-black text-[#D4AF37] block mb-4"),
+                H1("DISPATCH NOT FOUND", cls="font-heading text-2xl font-black text-white uppercase mb-3"),
+                P("This dispatch may have been removed or the link is invalid.", cls="text-neutral-400 text-sm mb-6"),
+                A("← BACK TO DISPATCHES", href="/rap-funxtion", cls="btn-gold text-xs py-2.5 px-6 font-heading font-bold tracking-widest"),
+                cls="text-center py-20"
+            ),
+            cls="w-full min-h-screen bg-[#0A0A0A]"
+        )
+        return Layout("Dispatch Not Found", error_content, current_path="/rap-funxtion")
+
+    # Increment view counter
+    increment_dispatch_views(dispatch_id)
+
+    embed_url = _dispatch_embed_url(dispatch)
+    is_yt = bool(_extract_yt_id(dispatch.get("video_url", "")))
+    cat = dispatch.get("category_tag", "Drop")
+    cat_cls, cat_icon = CATEGORY_COLORS.get(cat, CATEGORY_COLORS["Drop"])
+    views = dispatch.get("views", 0) + 1  # Show post-increment count
+    date_str = dispatch.get("created_at", "")[:10]
+
+    # Video player
+    if is_yt:
+        player = Iframe(
+            src=embed_url,
+            allowfullscreen="true",
+            cls="w-full aspect-video rounded-2xl border border-[#222222] shadow-2xl"
+        )
+    else:
+        player = Video(
+            Source(src=embed_url, type="video/mp4"),
+            controls=True,
+            cls="w-full aspect-video rounded-2xl border border-[#222222] shadow-2xl bg-black"
+        )
+
+    # Next dispatches rail
+    all_dispatches = get_dispatches(limit=10)
+    next_dispatches = [d for d in all_dispatches if d.get("id") != dispatch_id][:5]
+
+    rail = Div(
+        H3("NEXT DISPATCHES", cls="font-heading font-bold text-sm text-[#D4AF37] uppercase tracking-wider mb-4"),
+        Div(
+            *[_dispatch_card(d, compact=True) for d in next_dispatches],
+            cls="space-y-2"
+        ) if next_dispatches else P("No other dispatches available.", cls="text-neutral-500 text-xs italic"),
+        A("← ALL DISPATCHES", href="/rap-funxtion", cls="text-[10px] font-heading font-bold text-[#D4AF37] hover:text-[#FFD700] tracking-widest mt-4 block"),
+        cls="w-full lg:w-80 flex-shrink-0"
+    )
+
+    content = Div(
+        Div(
+            # Back link
+            Div(
+                A("← DISPATCHES", href="/rap-funxtion", cls="text-xs font-heading font-bold text-neutral-400 hover:text-[#D4AF37] tracking-widest transition-colors"),
+                cls="mb-6"
+            ),
+            # Main layout: player + rail
+            Div(
+                # Player column
+                Div(
+                    player,
+                    # Dispatch meta below player
+                    Div(
+                        Span(
+                            f"{cat_icon} {cat.upper()}",
+                            cls=f"text-[10px] font-mono font-bold tracking-wider px-2.5 py-1 rounded-full border inline-block mb-3 {cat_cls}"
+                        ),
+                        H1(dispatch.get("title", ""), cls="font-heading font-bold text-xl md:text-2xl text-white uppercase leading-tight mb-3"),
+                        Div(
+                            Span(dispatch.get("author", ""), cls="text-sm font-body text-neutral-200 font-semibold"),
+                            Span("•", cls="text-neutral-600 mx-2"),
+                            Span(f"👁 {views:,}", cls="text-sm font-mono text-neutral-400"),
+                            Span("•", cls="text-neutral-600 mx-2"),
+                            Span(date_str, cls="text-sm font-mono text-neutral-400"),
+                            cls="flex items-center flex-wrap gap-y-1"
+                        ),
+                        cls="mt-6"
+                    ),
+                    cls="flex-grow min-w-0"
+                ),
+                # Recommendation rail
+                rail,
+                cls="flex flex-col lg:flex-row gap-8"
+            ),
+            cls="max-w-6xl mx-auto px-6 py-10 md:py-16"
+        ),
+        cls="w-full min-h-screen bg-[#0A0A0A]"
+    )
+
+    return Layout(f"{dispatch.get('title', 'Dispatch')} | Rap Funxtion", content, current_path="/rap-funxtion")
 
 # ----------------- The Vault (Music) -----------------
 @rt("/music")

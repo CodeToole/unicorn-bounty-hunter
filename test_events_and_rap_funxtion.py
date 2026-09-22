@@ -3,7 +3,7 @@ import unittest
 from starlette.testclient import TestClient
 from main import app
 from routes.admin import get_session_token
-from services.firebase_service import _reset_local_stores
+from services.firebase_service import _reset_local_stores, get_dispatches
 
 class TestEventsAndRapFunxtion(unittest.TestCase):
 
@@ -15,21 +15,119 @@ class TestEventsAndRapFunxtion(unittest.TestCase):
     def tearDown(self):
         _reset_local_stores()
 
-    def test_events_and_rap_funxtion_flow(self):
-        # 1. Verify /rap-funxtion displays COMING SOON
+    def test_rap_funxtion_dispatch_feed(self):
+        # 1. Verify /rap-funxtion displays dispatches feed
         r_rf = self.client.get("/rap-funxtion")
         self.assertEqual(r_rf.status_code, 200)
-        self.assertIn("STATUS: COMING SOON", r_rf.text)
-        self.assertIn("lineup configurations are currently being finalized", r_rf.text)
-        self.assertNotIn("RESCHEDULING IN PROGRESS", r_rf.text)
+        self.assertIn("RAP FUNXTION DISPATCHES", r_rf.text)
+        self.assertIn("Musical Chairs Cypher Vol. 1", r_rf.text)
+        self.assertIn("Ali Kazem", r_rf.text)
+        self.assertIn("CYPHER", r_rf.text)
 
-        # 2. Verify Admin Events Tab
+    def test_rap_funxtion_watch_player(self):
+        # 2. Verify /rap-funxtion/watch/{id} renders player and increments views
+        seed_dispatch = get_dispatches()[0]
+        seed_id = seed_dispatch["id"]
+        initial_views = seed_dispatch.get("views", 0)
+
+        r_watch = self.client.get(f"/rap-funxtion/watch/{seed_id}")
+        self.assertEqual(r_watch.status_code, 200)
+        self.assertIn("Musical Chairs Cypher Vol. 1", r_watch.text)
+        self.assertIn("iframe", r_watch.text.lower())
+        self.assertIn("NEXT DISPATCHES", r_watch.text)
+
+        # 3. Verify 404 behavior for invalid dispatch ID
+        r_invalid = self.client.get("/rap-funxtion/watch/nonexistent-dispatch-id")
+        self.assertEqual(r_invalid.status_code, 200)
+        self.assertIn("DISPATCH NOT FOUND", r_invalid.text)
+
+    def test_admin_dispatches_rbac(self):
+        # 4. Super Admin can view dispatches tab
+        r_admin = self.client.get("/admin?tab=dispatches")
+        self.assertEqual(r_admin.status_code, 200)
+        self.assertIn("FAST DISPATCH PUBLISHER", r_admin.text)
+        self.assertIn("LIVE DISPATCHES", r_admin.text)
+
+        # 5. Ali Kazem (Council Artist Admin) can view dispatches tab
+        ali_client = TestClient(app)
+        ali_client.cookies.set("ubh_admin_session", "artist_admin:ali-kazem:ali@ubh.com")
+        r_ali = ali_client.get("/admin?tab=dispatches")
+        self.assertEqual(r_ali.status_code, 200)
+        self.assertIn("FAST DISPATCH PUBLISHER", r_ali.text)
+
+        # 6. Other Artist Admin (e.g. marv-k-z) cannot access dispatches tab (defaults to posts)
+        marv_client = TestClient(app)
+        marv_client.cookies.set("ubh_admin_session", "artist_admin:marv-k-z:marv@ubh.com")
+        r_marv = marv_client.get("/admin?tab=dispatches")
+        self.assertEqual(r_marv.status_code, 200)
+        self.assertNotIn("FAST DISPATCH PUBLISHER", r_marv.text)
+        self.assertIn("ARTIST PORTAL (MARV-K-Z)", r_marv.text)
+
+    def test_admin_dispatch_crud_flow(self):
+        # 7. Add a new dispatch as Super Admin
+        r_add = self.client.post("/admin/dispatches/add", data={
+            "title": "Rat Trap Underground Cypher Vol. 2",
+            "video_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            "category_tag": "Cypher",
+            "thumbnail_url": ""
+        }, follow_redirects=False)
+        self.assertEqual(r_add.status_code, 303)
+        self.assertIn("msg=Dispatch+published+successfully", r_add.headers["location"])
+
+        # 8. Verify public /rap-funxtion displays newly published dispatch
+        r_rf = self.client.get("/rap-funxtion")
+        self.assertIn("Rat Trap Underground Cypher Vol. 2", r_rf.text)
+
+        # 9. Extract newly created dispatch ID from admin list
+        r_admin_list = self.client.get("/admin?tab=dispatches")
+        matches = re.findall(r'name="dispatch_id"\s+value="([^"]+)"', r_admin_list.text)
+        self.assertTrue(len(matches) >= 2)
+        new_dispatch_id = matches[0]
+
+        # 10. Delete the newly created dispatch
+        r_delete = self.client.post("/admin/dispatches/delete", data={
+            "dispatch_id": new_dispatch_id
+        }, follow_redirects=False)
+        self.assertEqual(r_delete.status_code, 303)
+        self.assertIn("msg=Dispatch+deleted+successfully", r_delete.headers["location"])
+
+        # 11. Verify dispatch is removed from public feed
+        r_rf_after = self.client.get("/rap-funxtion")
+        self.assertNotIn("Rat Trap Underground Cypher Vol. 2", r_rf_after.text)
+
+    def test_ali_kazem_dispatch_add_and_unauthorized_rejection(self):
+        # 12. Ali Kazem can publish a dispatch
+        ali_client = TestClient(app)
+        ali_client.cookies.set("ubh_admin_session", "artist_admin:ali-kazem:ali@ubh.com")
+        r_ali_add = ali_client.post("/admin/dispatches/add", data={
+            "title": "Ali Kazem Exclusive Studio Session",
+            "video_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            "category_tag": "Exclusive",
+            "thumbnail_url": ""
+        }, follow_redirects=False)
+        self.assertEqual(r_ali_add.status_code, 303)
+        self.assertIn("msg=Dispatch+published+successfully", r_ali_add.headers["location"])
+
+        # 13. Unauthorized artist cannot publish dispatch
+        marv_client = TestClient(app)
+        marv_client.cookies.set("ubh_admin_session", "artist_admin:marv-k-z:marv@ubh.com")
+        r_marv_add = marv_client.post("/admin/dispatches/add", data={
+            "title": "Unauthorized Dispatch",
+            "video_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            "category_tag": "Drop",
+            "thumbnail_url": ""
+        }, follow_redirects=False)
+        self.assertEqual(r_marv_add.status_code, 303)
+        self.assertIn("error=Unauthorized", r_marv_add.headers["location"])
+
+    def test_events_admin_flow(self):
+        # 14. Verify Admin Events tab and add/delete still works
         r_admin_events = self.client.get("/admin?tab=events")
         self.assertEqual(r_admin_events.status_code, 200)
         self.assertIn("Rap Funxtion", r_admin_events.text)
         self.assertIn("Delete Event", r_admin_events.text)
 
-        # 3. Add a temporary event to test creation and deletion
+        # Add an event
         r_add = self.client.post("/admin/events/add", data={
             "title": "Rap Funxtion 17 Winter Showcase",
             "date": "December 2026",
@@ -40,12 +138,7 @@ class TestEventsAndRapFunxtion(unittest.TestCase):
         }, follow_redirects=False)
         self.assertEqual(r_add.status_code, 303)
 
-        # 4. Verify public /rap-funxtion reflects new live event
-        r_rf_new = self.client.get("/rap-funxtion")
-        self.assertIn("RAP FUNXTION 17 WINTER SHOWCASE", r_rf_new.text)
-        self.assertIn("STATUS: TICKETS LIVE", r_rf_new.text)
-
-        # 5. Extract event ID from admin events list and delete it
+        # Extract event ID and delete it
         r_admin_list = self.client.get("/admin?tab=events")
         match = re.search(r'name="event_id"\s+value="([^"]+)"', r_admin_list.text)
         self.assertIsNotNone(match)
@@ -55,10 +148,6 @@ class TestEventsAndRapFunxtion(unittest.TestCase):
             "event_id": event_id_to_delete
         }, follow_redirects=False)
         self.assertEqual(r_delete.status_code, 303)
-
-        # 6. Verify /rap-funxtion reverted back to COMING SOON
-        r_rf_final = self.client.get("/rap-funxtion")
-        self.assertIn("STATUS: COMING SOON", r_rf_final.text)
 
 if __name__ == "__main__":
     unittest.main()

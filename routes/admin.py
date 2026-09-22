@@ -31,7 +31,10 @@ from services.firebase_service import (
     delete_artist_post,
     create_user_account,
     authenticate_user_account,
-    get_all_user_accounts
+    get_all_user_accounts,
+    get_dispatches,
+    create_dispatch,
+    delete_dispatch
 )
 
 admin_app = FastHTML()
@@ -316,8 +319,11 @@ def get_admin(req: Request, date: str = "", tab: str = "", msg: str = "", error:
     if not tab:
         tab = "slots" if role == "super_admin" else "posts"
 
-    # Enforce RBAC: artist_admin cannot view other tabs
-    if role == "artist_admin" and tab != "posts":
+    # Enforce RBAC: artist_admin cannot view other tabs (except dispatches for ali-kazem)
+    allowed_artist_tabs = ["posts"]
+    if role == "artist_admin" and assigned_slug == "ali-kazem":
+        allowed_artist_tabs.append("dispatches")
+    if role == "artist_admin" and tab not in allowed_artist_tabs:
         tab = "posts"
 
     if not date:
@@ -329,6 +335,7 @@ def get_admin(req: Request, date: str = "", tab: str = "", msg: str = "", error:
     showcases = get_showcases() if role == "super_admin" else []
     subscribers = get_subscribers() if role == "super_admin" else []
     user_accounts = get_all_user_accounts() if role == "super_admin" else []
+    all_dispatches = get_dispatches(limit=50) if (role == "super_admin" or (role == "artist_admin" and assigned_slug == "ali-kazem")) else []
 
     if role == "super_admin":
         all_posts = get_all_artist_posts()
@@ -342,14 +349,19 @@ def get_admin(req: Request, date: str = "", tab: str = "", msg: str = "", error:
             A(f"📅 Studio Slots ({date})", href=f"/admin?tab=slots&date={date}", cls=f"px-4 py-2.5 rounded-lg text-xs font-heading font-bold uppercase transition-all { 'bg-[#D4AF37] text-black' if tab == 'slots' else 'bg-[#141414] text-neutral-400 hover:text-white' }"),
             A(f"🎥 Showcases ({len(showcases)})", href="/admin?tab=showcases", cls=f"px-4 py-2.5 rounded-lg text-xs font-heading font-bold uppercase transition-all { 'bg-[#D4AF37] text-black' if tab == 'showcases' else 'bg-[#141414] text-neutral-400 hover:text-white' }"),
             A(f"🎤 Events ({len(events)})", href="/admin?tab=events", cls=f"px-4 py-2.5 rounded-lg text-xs font-heading font-bold uppercase transition-all { 'bg-[#D4AF37] text-black' if tab == 'events' else 'bg-[#141414] text-neutral-400 hover:text-white' }"),
+            A(f"📡 Dispatches ({len(all_dispatches)})", href="/admin?tab=dispatches", cls=f"px-4 py-2.5 rounded-lg text-xs font-heading font-bold uppercase transition-all { 'bg-[#D4AF37] text-black' if tab == 'dispatches' else 'bg-[#141414] text-neutral-400 hover:text-white' }"),
             A(f"✏️ Artist Posts ({len(all_posts)})", href="/admin?tab=posts", cls=f"px-4 py-2.5 rounded-lg text-xs font-heading font-bold uppercase transition-all { 'bg-[#D4AF37] text-black' if tab == 'posts' else 'bg-[#141414] text-neutral-400 hover:text-white' }"),
             A(f"✉️ Subscribers ({len(subscribers)})", href="/admin?tab=subscribers", cls=f"px-4 py-2.5 rounded-lg text-xs font-heading font-bold uppercase transition-all { 'bg-[#D4AF37] text-black' if tab == 'subscribers' else 'bg-[#141414] text-neutral-400 hover:text-white' }"),
             A(f"👥 User Accounts ({len(user_accounts)})", href="/admin?tab=users", cls=f"px-4 py-2.5 rounded-lg text-xs font-heading font-bold uppercase transition-all { 'bg-[#D4AF37] text-black' if tab == 'users' else 'bg-[#141414] text-neutral-400 hover:text-white' }"),
         ])
     else:
         tabs_list.append(
-            A(f"✏️ My Dispatches & Posts ({len(all_posts)})", href="/admin?tab=posts", cls="px-4 py-2.5 rounded-lg text-xs font-heading font-bold uppercase bg-[#D4AF37] text-black")
+            A(f"✏️ My Dispatches & Posts ({len(all_posts)})", href="/admin?tab=posts", cls=f"px-4 py-2.5 rounded-lg text-xs font-heading font-bold uppercase transition-all { 'bg-[#D4AF37] text-black' if tab == 'posts' else 'bg-[#141414] text-neutral-400 hover:text-white' }")
         )
+        if assigned_slug == "ali-kazem":
+            tabs_list.append(
+                A(f"📡 Dispatches ({len(all_dispatches)})", href="/admin?tab=dispatches", cls=f"px-4 py-2.5 rounded-lg text-xs font-heading font-bold uppercase transition-all { 'bg-[#D4AF37] text-black' if tab == 'dispatches' else 'bg-[#141414] text-neutral-400 hover:text-white' }")
+            )
 
     tabs_header = Div(*tabs_list, cls="flex flex-wrap gap-2 mb-8")
 
@@ -704,10 +716,97 @@ def get_admin(req: Request, date: str = "", tab: str = "", msg: str = "", error:
         'slots': slots_content,
         'showcases': showcases_content,
         'events': events_content,
+        'dispatches': None,  # placeholder, built below
         'posts': posts_content,
         'subscribers': subscribers_content,
         'users': users_content
     }
+
+    # 7. Dispatches Tab Content (Super Admin + ali-kazem Council Artist Admin)
+    category_options = [
+        Option("Cypher", value="Cypher"),
+        Option("Exclusive", value="Exclusive"),
+        Option("Behind The Scenes", value="Behind The Scenes"),
+        Option("Drop", value="Drop"),
+    ]
+
+    dispatches_content = Div(
+        Div(
+            Div(
+                Span("📡", cls="text-lg mr-2"),
+                H3("FAST DISPATCH PUBLISHER", cls="text-sm font-heading font-bold text-[#D4AF37] uppercase inline"),
+                cls="flex items-center mb-1"
+            ),
+            P("Publish video dispatches directly to the /rap-funxtion live feed. One-click to broadcast.", cls="text-neutral-500 text-[10px] mb-4"),
+            Form(
+                Div(
+                    Label("DISPATCH TITLE:", cls="text-[10px] font-heading font-bold text-neutral-400 uppercase block mb-1.5"),
+                    Input(type="text", name="title", placeholder="e.g. Musical Chairs Cypher Vol. 3", required=True, cls="input-dark w-full text-xs"),
+                    cls="mb-3"
+                ),
+                Div(
+                    Label("VIDEO URL (YouTube Link or Direct MP4):", cls="text-[10px] font-heading font-bold text-neutral-400 uppercase block mb-1.5"),
+                    Input(type="text", name="video_url", placeholder="https://www.youtube.com/watch?v=... or https://example.com/video.mp4", required=True, cls="input-dark w-full text-xs font-mono"),
+                    cls="mb-3"
+                ),
+                Div(
+                    Div(
+                        Label("CATEGORY TAG:", cls="text-[10px] font-heading font-bold text-neutral-400 uppercase block mb-1.5"),
+                        Select(
+                            *category_options,
+                            name="category_tag",
+                            cls="input-dark w-full text-xs"
+                        ),
+                        cls="flex-grow"
+                    ),
+                    Div(
+                        Label("CUSTOM THUMBNAIL URL (OPTIONAL):", cls="text-[10px] font-heading font-bold text-neutral-400 uppercase block mb-1.5"),
+                        Input(type="text", name="thumbnail_url", placeholder="Leave blank for auto YouTube thumbnail", cls="input-dark w-full text-xs font-mono"),
+                        cls="flex-grow"
+                    ),
+                    cls="flex flex-col sm:flex-row gap-3 mb-4"
+                ),
+                Button("⚡ PUBLISH DISPATCH", type="submit", cls="btn-gold py-2.5 px-6 text-xs font-heading font-black cursor-pointer"),
+                action="/admin/dispatches/add",
+                method="POST"
+            ),
+            cls="bg-[#121212] border border-[#222222] p-6 rounded-xl mb-8"
+        ),
+        Div(
+            Span(f"LIVE DISPATCHES: {len(all_dispatches)}", cls="text-xs font-mono font-bold text-[#D4AF37] tracking-wider uppercase block mb-4"),
+            Div(
+                *[
+                    Div(
+                        Div(
+                            Span(dp.get('category_tag', 'Drop').upper(), cls="text-[9px] font-mono font-bold tracking-wider px-2 py-0.5 rounded bg-fuchsia-500/10 text-fuchsia-400 mr-2"),
+                            Span(dp.get('created_at', '')[:10], cls="text-[10px] font-mono text-neutral-500"),
+                            cls="flex items-center gap-2 mb-2"
+                        ),
+                        H4(dp.get('title', 'Untitled'), cls="font-heading font-bold text-sm text-white mb-1"),
+                        P(f"Author: {dp.get('author', 'N/A')} • Views: {dp.get('views', 0):,}", cls="text-neutral-400 text-xs mb-3"),
+                        Div(
+                            A("View on feed →", href=f"/rap-funxtion/watch/{dp.get('id')}", cls="text-[10px] text-[#D4AF37] hover:text-[#FFD700] font-heading font-bold tracking-wider"),
+                            Form(
+                                Input(type="hidden", name="dispatch_id", value=dp.get('id', '')),
+                                Button("🗑️ Delete Dispatch", type="submit", cls="text-[10px] text-rose-400 hover:text-rose-300 font-heading font-bold tracking-wider cursor-pointer bg-transparent border-0 p-0 hover:underline"),
+                                action="/admin/dispatches/delete",
+                                method="POST",
+                                cls="inline"
+                            ),
+                            cls="flex items-center justify-between mt-2 pt-2 border-t border-[#222222]"
+                        ),
+                        cls="p-4 bg-[#141414] border border-[#262626] rounded-xl"
+                    )
+                    for dp in all_dispatches
+                ] if all_dispatches else [P("No dispatches published yet. Use the form above to broadcast the first one.", cls="text-neutral-500 text-xs italic")],
+                cls="space-y-3 max-h-[600px] overflow-y-auto"
+            ),
+            cls="p-6 bg-[#121212] border border-[#222222] rounded-xl"
+        )
+    )
+
+    if role == "super_admin" or (role == "artist_admin" and assigned_slug == "ali-kazem"):
+        tab_map['dispatches'] = dispatches_content
     active_tab_content = tab_map.get(tab, posts_content if role == "artist_admin" else slots_content)
 
     dashboard = Div(
@@ -967,3 +1066,61 @@ async def post_admin_artist_post_delete(req: Request):
         delete_artist_post(post_id)
 
     return RedirectResponse("/admin?tab=posts&msg=Post+deleted+successfully", status_code=303)
+
+@rt("/admin/dispatches/add")
+async def post_admin_dispatch_add(req: Request):
+    session = get_current_user_session(req)
+    if not session:
+        return RedirectResponse("/admin?error=Unauthorized", status_code=303)
+
+    role = session.get("role", "")
+    assigned_slug = session.get("artist_slug", "")
+
+    if role != "super_admin" and not (role == "artist_admin" and assigned_slug == "ali-kazem"):
+        return RedirectResponse("/admin?error=Unauthorized", status_code=303)
+
+    form = await req.form()
+    title = str(form.get("title", "")).strip()
+    video_url = sanitize_media_url(str(form.get("video_url", "")), allow_relative=True)
+    category_tag = str(form.get("category_tag", "Drop")).strip()
+    thumbnail_url = sanitize_media_url(str(form.get("thumbnail_url", "")), allow_relative=True)
+
+    if not title or not video_url:
+        return RedirectResponse("/admin?tab=dispatches&error=Title+and+video+URL+are+required", status_code=303)
+
+    valid_tags = {"Cypher", "Exclusive", "Behind The Scenes", "Drop"}
+    if category_tag not in valid_tags:
+        category_tag = "Drop"
+
+    create_dispatch({
+        "title": title,
+        "video_url": video_url,
+        "thumbnail_url": thumbnail_url,
+        "author": "Ali Kazem",
+        "artist_slug": "ali-kazem",
+        "category_tag": category_tag
+    })
+
+    return RedirectResponse("/admin?tab=dispatches&msg=Dispatch+published+successfully", status_code=303)
+
+@rt("/admin/dispatches/delete")
+async def post_admin_dispatch_delete(req: Request):
+    session = get_current_user_session(req)
+    if not session:
+        return RedirectResponse("/admin?error=Unauthorized", status_code=303)
+
+    role = session.get("role", "")
+    assigned_slug = session.get("artist_slug", "")
+
+    if role != "super_admin" and not (role == "artist_admin" and assigned_slug == "ali-kazem"):
+        return RedirectResponse("/admin?error=Unauthorized", status_code=303)
+
+    form = await req.form()
+    dispatch_id = sanitize_identifier(str(form.get("dispatch_id", "")))
+
+    if not dispatch_id:
+        return RedirectResponse("/admin?tab=dispatches&error=Invalid+dispatch+ID", status_code=303)
+
+    delete_dispatch(dispatch_id)
+    return RedirectResponse("/admin?tab=dispatches&msg=Dispatch+deleted+successfully", status_code=303)
+

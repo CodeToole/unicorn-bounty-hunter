@@ -59,6 +59,19 @@ _local_events: List[Dict[str, Any]] = [
         "description": "New dates, venue details, and lineup configurations are currently being finalized. Stay tuned for official announcements."
     }
 ]
+_local_dispatches: List[Dict[str, Any]] = [
+    {
+        "id": "dispatch-seed-001",
+        "title": "Musical Chairs Cypher Vol. 1",
+        "video_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        "thumbnail_url": "",
+        "author": "Ali Kazem",
+        "artist_slug": "ali-kazem",
+        "category_tag": "Cypher",
+        "views": 42,
+        "created_at": "2026-09-01T12:00:00Z"
+    }
+]
 _local_showcases: List[Dict[str, Any]] = [
     {
         "id": "mc-series",
@@ -74,17 +87,19 @@ _local_showcases: List[Dict[str, Any]] = [
 _SEED_EVENTS = copy.deepcopy(_local_events)
 _SEED_SHOWCASES = copy.deepcopy(_local_showcases)
 _SEED_SUBSCRIBERS = copy.deepcopy(_local_subscribers)
+_SEED_DISPATCHES = copy.deepcopy(_local_dispatches)
 
 def _reset_local_stores():
     """Reset all in-memory stores to their original seed state. Used by tests to prevent state leakage."""
     global _local_slots, _local_subscribers, _local_events, _local_showcases
-    global _local_artist_posts, _local_user_accounts
+    global _local_artist_posts, _local_user_accounts, _local_dispatches
     _local_slots = {}
     _local_subscribers = copy.deepcopy(_SEED_SUBSCRIBERS)
     _local_events = copy.deepcopy(_SEED_EVENTS)
     _local_showcases = copy.deepcopy(_SEED_SHOWCASES)
     _local_artist_posts = []
     _local_user_accounts = []
+    _local_dispatches = copy.deepcopy(_SEED_DISPATCHES)
 
 # Helper to generate default slots for a given date
 def _generate_default_slots_for_date(date_str: str) -> List[Dict[str, Any]]:
@@ -575,3 +590,95 @@ def block_entire_day_for_date(date_str: str) -> bool:
 
     _local_slots[date_str] = [data]
     return True
+
+# ----------------- Rap Funxtion Dispatches -----------------
+
+def get_dispatches(limit: int = 20) -> List[Dict[str, Any]]:
+    """Get published dispatches sorted by created_at descending."""
+    if _is_firebase_initialized and _firestore_db:
+        try:
+            docs = (
+                _firestore_db.collection("dispatches")
+                .order_by("created_at", direction=firestore.Query.DESCENDING)
+                .limit(limit)
+                .stream()
+            )
+            return [doc.to_dict() | {"id": doc.id} for doc in docs]
+        except Exception as err:
+            print(f"Firestore get dispatches error: {err}")
+
+    sorted_dispatches = sorted(_local_dispatches, key=lambda x: x.get("created_at", ""), reverse=True)
+    return sorted_dispatches[:limit]
+
+def get_dispatch_by_id(dispatch_id: str) -> Optional[Dict[str, Any]]:
+    """Get a single dispatch by its ID."""
+    if not dispatch_id:
+        return None
+
+    if _is_firebase_initialized and _firestore_db:
+        try:
+            doc = _firestore_db.collection("dispatches").document(dispatch_id).get()
+            if doc.exists:
+                return doc.to_dict() | {"id": doc.id}
+        except Exception as err:
+            print(f"Firestore get dispatch error: {err}")
+
+    for d in _local_dispatches:
+        if d.get("id") == dispatch_id:
+            return d
+    return None
+
+def create_dispatch(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Create a new dispatch entry and persist it."""
+    dispatch_id = f"dispatch-{int(datetime.datetime.now().timestamp())}"
+    record = {
+        "id": dispatch_id,
+        "title": data.get("title", "").strip(),
+        "video_url": data.get("video_url", "").strip(),
+        "thumbnail_url": data.get("thumbnail_url", "").strip(),
+        "author": data.get("author", "").strip(),
+        "artist_slug": data.get("artist_slug", "").strip(),
+        "category_tag": data.get("category_tag", "Drop"),
+        "views": 0,
+        "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
+    }
+
+    if _is_firebase_initialized and _firestore_db:
+        try:
+            _firestore_db.collection("dispatches").document(dispatch_id).set(record)
+            return record
+        except Exception as err:
+            print(f"Firestore create dispatch error: {err}")
+
+    _local_dispatches.insert(0, record)
+    return record
+
+def delete_dispatch(dispatch_id: str) -> bool:
+    """Delete a dispatch by ID."""
+    global _local_dispatches
+    if _is_firebase_initialized and _firestore_db:
+        try:
+            _firestore_db.collection("dispatches").document(dispatch_id).delete()
+        except Exception as err:
+            print(f"Firestore delete dispatch error: {err}")
+
+    original_len = len(_local_dispatches)
+    _local_dispatches = [d for d in _local_dispatches if d.get("id") != dispatch_id]
+    return len(_local_dispatches) < original_len
+
+def increment_dispatch_views(dispatch_id: str) -> bool:
+    """Increment view counter on a dispatch by 1."""
+    if _is_firebase_initialized and _firestore_db:
+        try:
+            _firestore_db.collection("dispatches").document(dispatch_id).update({
+                "views": firestore.Increment(1)
+            })
+            return True
+        except Exception as err:
+            print(f"Firestore increment dispatch views error: {err}")
+
+    for d in _local_dispatches:
+        if d.get("id") == dispatch_id:
+            d["views"] = d.get("views", 0) + 1
+            return True
+    return False

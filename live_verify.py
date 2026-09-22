@@ -16,6 +16,7 @@ class TestLiveRoutesInProcess(unittest.TestCase):
             '/showcase',
             '/musical-chairs',
             '/rap-funxtion',
+            '/rap-funxtion/watch/dispatch-seed-001',
             '/music',
             '/merch',
             '/booking',
@@ -23,6 +24,7 @@ class TestLiveRoutesInProcess(unittest.TestCase):
             '/admin?tab=slots',
             '/admin?tab=showcases',
             '/admin?tab=events',
+            '/admin?tab=dispatches',
             '/admin?tab=posts',
             '/admin?tab=subscribers',
             '/health'
