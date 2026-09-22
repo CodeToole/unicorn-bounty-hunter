@@ -3,12 +3,17 @@ import unittest
 from starlette.testclient import TestClient
 from main import app
 from routes.admin import get_session_token
+from services.firebase_service import _reset_local_stores
 
 class TestEventsAndRapFunxtion(unittest.TestCase):
 
     def setUp(self):
+        _reset_local_stores()
         self.client = TestClient(app)
         self.client.cookies.set("ubh_admin_session", get_session_token())
+
+    def tearDown(self):
+        _reset_local_stores()
 
     def test_events_and_rap_funxtion_flow(self):
         # 1. Verify /rap-funxtion displays COMING SOON

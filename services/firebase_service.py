@@ -1,4 +1,5 @@
 import os
+import copy
 import datetime
 from typing import List, Dict, Optional, Any
 from config import FIREBASE_STORAGE_BUCKET, DEFAULT_TIME_SLOTS
@@ -68,6 +69,22 @@ _local_showcases: List[Dict[str, Any]] = [
         "created_at": "2026-08-01T00:00:00Z"
     }
 ]
+
+# Deep-copy seed state for test isolation
+_SEED_EVENTS = copy.deepcopy(_local_events)
+_SEED_SHOWCASES = copy.deepcopy(_local_showcases)
+_SEED_SUBSCRIBERS = copy.deepcopy(_local_subscribers)
+
+def _reset_local_stores():
+    """Reset all in-memory stores to their original seed state. Used by tests to prevent state leakage."""
+    global _local_slots, _local_subscribers, _local_events, _local_showcases
+    global _local_artist_posts, _local_user_accounts
+    _local_slots = {}
+    _local_subscribers = copy.deepcopy(_SEED_SUBSCRIBERS)
+    _local_events = copy.deepcopy(_SEED_EVENTS)
+    _local_showcases = copy.deepcopy(_SEED_SHOWCASES)
+    _local_artist_posts = []
+    _local_user_accounts = []
 
 # Helper to generate default slots for a given date
 def _generate_default_slots_for_date(date_str: str) -> List[Dict[str, Any]]:

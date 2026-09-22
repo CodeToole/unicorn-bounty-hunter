@@ -2,12 +2,16 @@ import unittest
 from starlette.testclient import TestClient
 from main import app
 from config import ADMIN_SECRET_KEY
-from services.firebase_service import create_user_account, authenticate_user_account, get_all_user_accounts
+from services.firebase_service import create_user_account, authenticate_user_account, get_all_user_accounts, _reset_local_stores
 
 class TestAdminUserCreate(unittest.TestCase):
 
     def setUp(self):
+        _reset_local_stores()
         self.client = TestClient(app, follow_redirects=False)
+
+    def tearDown(self):
+        _reset_local_stores()
 
     def test_post_admin_user_create_unauthenticated(self):
         """Unauthenticated requests should be rejected with an error redirect."""
