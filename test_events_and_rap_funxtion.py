@@ -1,9 +1,11 @@
+import os
+import io
 import re
 import unittest
 from starlette.testclient import TestClient
 from main import app
 from routes.admin import get_session_token
-from services.firebase_service import _reset_local_stores, get_dispatches
+from services.firebase_service import _reset_local_stores, get_dispatches, get_events
 
 class TestEventsAndRapFunxtion(unittest.TestCase):
 
@@ -14,6 +16,14 @@ class TestEventsAndRapFunxtion(unittest.TestCase):
 
     def tearDown(self):
         _reset_local_stores()
+        upload_dir = os.path.join(os.path.dirname(__file__), "static", "uploads")
+        if os.path.exists(upload_dir):
+            for f in os.listdir(upload_dir):
+                if f.startswith("test_flyer_"):
+                    try:
+                        os.remove(os.path.join(upload_dir, f))
+                    except Exception:
+                        pass
 
     def test_rap_funxtion_dispatch_feed(self):
         # 1. Verify /rap-funxtion displays dispatches feed
@@ -148,6 +158,41 @@ class TestEventsAndRapFunxtion(unittest.TestCase):
             "event_id": event_id_to_delete
         }, follow_redirects=False)
         self.assertEqual(r_delete.status_code, 303)
+
+    def test_event_flyer_file_upload(self):
+        # 15. Verify direct file upload for event flyer
+        fake_png = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4"
+        files = {
+            "flyer_file": ("test_flyer_sample.png", io.BytesIO(fake_png), "image/png")
+        }
+        data = {
+            "title": "Uploaded Direct Flyer Event",
+            "date": "Spring 2027",
+            "status": "Tickets Live",
+            "ticket_url": "https://tickets.example.com",
+            "description": "Showcase testing direct multipart file upload."
+        }
+
+        r_upload = self.client.post("/admin/events/add", data=data, files=files, follow_redirects=False)
+        self.assertEqual(r_upload.status_code, 303)
+        self.assertIn("msg=Event+added+successfully", r_upload.headers["location"])
+
+        # Verify event was saved with the uploaded flyer path
+        events = get_events()
+        uploaded_event = next((e for e in events if e.get("title") == "Uploaded Direct Flyer Event"), None)
+        self.assertIsNotNone(uploaded_event)
+        self.assertIn("flyer_url", uploaded_event)
+        self.assertIn("flyer_image_url", uploaded_event)
+        self.assertTrue(
+            uploaded_event["flyer_url"].startswith("/static/uploads/test_flyer_sample_") or
+            "storage.googleapis.com" in uploaded_event["flyer_url"]
+        )
+
+        # Verify admin tab displays the uploaded flyer image
+        r_admin = self.client.get("/admin?tab=events")
+        self.assertEqual(r_admin.status_code, 200)
+        self.assertIn("Uploaded Direct Flyer Event", r_admin.text)
+        self.assertIn(uploaded_event["flyer_url"], r_admin.text)
 
 if __name__ == "__main__":
     unittest.main()

@@ -22,6 +22,7 @@ from services.firebase_service import (
     get_events,
     add_event,
     delete_event,
+    upload_event_flyer,
     get_showcases,
     add_showcase,
     get_subscribers,
@@ -517,12 +518,18 @@ def get_admin(req: Request, date: str = "", tab: str = "", msg: str = "", error:
                 Input(type="text", name="title", placeholder="Event Title (e.g. Rap Funxtion 17) *", required=True, cls="input-dark w-full text-xs mb-3 font-body"),
                 Input(type="text", name="date", placeholder="Date / Timeline (e.g. November 2026) *", required=True, cls="input-dark w-full text-xs mb-3 font-body"),
                 Input(type="text", name="status", placeholder="Status (e.g. Tickets Live, Rescheduling) *", value="Active", cls="input-dark w-full text-xs mb-3 font-body"),
-                Input(type="text", name="flyer_url", placeholder="Flyer Image Path (e.g. /static/assets/rf16_flyer_new.jpg)", value="/static/assets/rf16_flyer_new.jpg", cls="input-dark w-full text-xs mb-3 font-mono"),
+                Div(
+                    Label("UPLOAD FLYER IMAGE:", cls="text-[10px] font-heading font-bold text-neutral-400 uppercase block mb-1.5"),
+                    Input(type="file", name="flyer_file", accept="image/*", cls="input-dark w-full text-xs mb-2 font-mono file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-bold file:bg-[#D4AF37] file:text-black hover:file:bg-[#FFD700]"),
+                    cls="mb-3"
+                ),
+                Input(type="text", name="flyer_url", placeholder="Or paste external image URL (optional fallback)", value="", cls="input-dark w-full text-xs mb-3 font-mono"),
                 Input(type="text", name="ticket_url", placeholder="Ticket / RSVP Link", value="#", cls="input-dark w-full text-xs mb-3 font-body"),
                 Textarea(name="description", placeholder="Event description...", rows="2", cls="input-dark w-full text-xs mb-4 font-body"),
                 Button("PUBLISH EVENT", type="submit", cls="btn-gold py-2.5 px-5 text-xs font-heading font-black cursor-pointer"),
                 action="/admin/events/add",
-                method="POST"
+                method="POST",
+                enctype="multipart/form-data"
             ),
             cls="bg-[#121212] border border-[#222222] p-6 rounded-xl mb-8"
         ),
@@ -534,7 +541,7 @@ def get_admin(req: Request, date: str = "", tab: str = "", msg: str = "", error:
                             H4(ev["title"], cls="font-heading font-bold text-base text-white mb-1"),
                             Span(f"Date: {ev.get('date')} • Status: {ev.get('status')}", cls="text-xs text-[#D4AF37] block mb-2"),
                             P(ev.get("description", ""), cls="text-neutral-400 text-xs mb-3 leading-relaxed"),
-                            Img(src=ev.get("flyer_url"), cls="w-36 rounded-lg border border-[#333333] shadow-md mb-2") if ev.get("flyer_url") else None,
+                            Img(src=ev.get("flyer_image_url") or ev.get("flyer_url"), cls="w-36 rounded-lg border border-[#333333] shadow-md mb-2") if (ev.get("flyer_image_url") or ev.get("flyer_url")) else None,
                             cls="flex-grow"
                         ),
                         Form(
@@ -977,12 +984,32 @@ async def post_admin_event_add(req: Request):
     title = str(form.get("title", "")).strip()
     date = str(form.get("date", "")).strip()
     status = str(form.get("status", "Active")).strip()
-    flyer_url = sanitize_media_url(str(form.get("flyer_url", "")), allow_relative=True)
     ticket_url = sanitize_media_url(str(form.get("ticket_url", "")), allow_relative=True, allow_hash=True)
     description = str(form.get("description", "")).strip()
 
     if not title or not date:
         return RedirectResponse("/admin?tab=events&error=Event+title+and+date+are+required", status_code=303)
+
+    # Flyer upload handling
+    flyer_url = ""
+    flyer_file = form.get("flyer_file")
+    if flyer_file and hasattr(flyer_file, "filename") and flyer_file.filename:
+        file_bytes = await flyer_file.read()
+        try:
+            await flyer_file.close()
+        except Exception:
+            pass
+        if file_bytes and len(file_bytes) > 0:
+            content_type = getattr(flyer_file, "content_type", "") or "image/jpeg"
+            flyer_url = upload_event_flyer(file_bytes=file_bytes, filename=flyer_file.filename, content_type=content_type)
+
+    if not flyer_url:
+        text_flyer = str(form.get("flyer_url", "")).strip()
+        if text_flyer:
+            flyer_url = sanitize_media_url(text_flyer, allow_relative=True)
+
+    if not flyer_url:
+        flyer_url = "/static/assets/rf16_flyer_new.jpg"
 
     add_event(
         title=title,
@@ -990,7 +1017,8 @@ async def post_admin_event_add(req: Request):
         status=status,
         flyer_url=flyer_url,
         ticket_url=ticket_url,
-        description=description
+        description=description,
+        flyer_image_url=flyer_url
     )
     return RedirectResponse("/admin?tab=events&msg=Event+added+successfully", status_code=303)
 

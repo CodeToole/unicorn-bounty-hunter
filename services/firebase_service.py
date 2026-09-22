@@ -1,4 +1,5 @@
 import os
+import re
 import copy
 import datetime
 from typing import List, Dict, Optional, Any
@@ -28,13 +29,22 @@ if _has_explicit_creds or _is_cloud_env:
                     'storageBucket': FIREBASE_STORAGE_BUCKET
                 })
                 _firestore_db = firestore.client()
-                _storage_bucket = storage.bucket()
+                try:
+                    _storage_bucket = storage.bucket(FIREBASE_STORAGE_BUCKET) if FIREBASE_STORAGE_BUCKET else storage.bucket()
+                except Exception as st_err:
+                    print(f"Storage bucket init note: {st_err}")
+                    _storage_bucket = None
                 _is_firebase_initialized = True
                 print("Firebase Admin SDK initialized successfully.")
             except Exception as auth_err:
                 print(f"Firebase initialization bypassed ({auth_err}). Running in local fallback mode.")
         else:
             _firestore_db = firestore.client()
+            try:
+                _storage_bucket = storage.bucket(FIREBASE_STORAGE_BUCKET) if FIREBASE_STORAGE_BUCKET else storage.bucket()
+            except Exception as st_err:
+                print(f"Storage bucket init note: {st_err}")
+                _storage_bucket = None
             _is_firebase_initialized = True
     except Exception as e:
         print(f"Firebase Admin SDK not loaded ({e}). Operating in standalone fallback mode.")
@@ -302,14 +312,74 @@ def get_events() -> List[Dict[str, Any]]:
             print(f"Firestore get events error: {err}")
     return _local_events
 
-def add_event(title: str, date: str, status: str, flyer_url: str, ticket_url: str, description: str) -> Dict[str, Any]:
+def upload_file(file_bytes: bytes, filename: str, folder: str = "flyers", content_type: Optional[str] = None) -> str:
+    """
+    Uploads a file to Google Cloud / Firebase Storage bucket.
+    If storage bucket is unavailable (e.g. local dev / testing), falls back to saving to static/uploads/.
+    Returns public URL (or local /static/uploads/ path).
+    """
+    if not filename:
+        filename = "upload.jpg"
+
+    # Sanitize extension and base
+    raw_base, ext = os.path.splitext(os.path.basename(filename))
+    ext = ext.lower()
+    if ext not in [".jpg", ".jpeg", ".png", ".webp", ".gif"]:
+        ext = ".jpg"
+
+    safe_base = re.sub(r'[^a-zA-Z0-9_-]', '_', raw_base)[:40] or "file"
+    timestamp = int(datetime.datetime.now().timestamp())
+    safe_filename = f"{safe_base}_{timestamp}{ext}"
+
+    if not content_type:
+        content_map = {
+            ".png": "image/png",
+            ".webp": "image/webp",
+            ".gif": "image/gif",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+        }
+        content_type = content_map.get(ext, "image/jpeg")
+
+    # 1. Attempt upload to Cloud / Firebase Storage bucket
+    if _is_firebase_initialized and _storage_bucket:
+        try:
+            blob_path = f"{folder}/{safe_filename}"
+            blob = _storage_bucket.blob(blob_path)
+            blob.upload_from_string(file_bytes, content_type=content_type)
+            try:
+                blob.make_public()
+                return blob.public_url
+            except Exception as pub_err:
+                print(f"Bucket make_public bypassed: {pub_err}")
+                bucket_name = _storage_bucket.name or FIREBASE_STORAGE_BUCKET
+                return f"https://storage.googleapis.com/{bucket_name}/{blob_path}"
+        except Exception as storage_err:
+            print(f"Storage upload error ({storage_err}). Falling back to local disk storage.")
+
+    # 2. Fallback: Save to static/uploads/
+    upload_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static", "uploads")
+    os.makedirs(upload_dir, exist_ok=True)
+    local_path = os.path.join(upload_dir, safe_filename)
+    with open(local_path, "wb") as f:
+        f.write(file_bytes)
+
+    return f"/static/uploads/{safe_filename}"
+
+def upload_event_flyer(file_bytes: bytes, filename: str, content_type: Optional[str] = None) -> str:
+    """Helper to upload event flyer images."""
+    return upload_file(file_bytes=file_bytes, filename=filename, folder="flyers", content_type=content_type)
+
+def add_event(title: str, date: str, status: str, flyer_url: str, ticket_url: str, description: str, flyer_image_url: Optional[str] = None) -> Dict[str, Any]:
     event_id = f"event-{int(datetime.datetime.now().timestamp())}"
+    resolved_flyer = flyer_image_url or flyer_url or "/static/assets/rf16_flyer_new.jpg"
     data = {
         "id": event_id,
         "title": title,
         "date": date,
         "status": status,
-        "flyer_url": flyer_url or "/static/assets/rf16_flyer_new.jpg",
+        "flyer_url": resolved_flyer,
+        "flyer_image_url": resolved_flyer,
         "ticket_url": ticket_url or "#",
         "active": True,
         "description": description,

@@ -13,6 +13,7 @@ from config import PORT
 os.makedirs("static/css", exist_ok=True)
 os.makedirs("static/assets", exist_ok=True)
 os.makedirs("static/videos", exist_ok=True)
+os.makedirs("static/uploads", exist_ok=True)
 
 # Initialize FastHTML Master Application
 app, rt = fast_app(
